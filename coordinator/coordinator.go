@@ -24,14 +24,14 @@ type DisplaySettings struct {
 var gridData = make([][]string, 8)
 
 func createEmptyString(carString string) string {
-	lines := strings.Split(carString, "\n")
-	height := len(lines)
-	width := len(lines[0])
+	height := 4
+	width := 13
 
 	var emptyString strings.Builder
 	for i := 0; i < height; i++ {
 		for j := 0; j < width; j++ {
 			emptyString.WriteByte(' ')
+
 		}
 		emptyString.WriteByte('\n')
 	}
