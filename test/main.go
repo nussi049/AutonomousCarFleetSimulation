@@ -6,7 +6,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"AutonomousCarFleetSimulation/coordinator/CoordClient"
+	"AutonomousCarFleetSimulation/api"
 )
 
 func main() {
@@ -18,18 +18,18 @@ func main() {
 	defer conn.Close()
 
 	// Create a client instance.
-	client := CoordClient.NewCoordinatorServiceClient(conn)
+	client := api.NewCoordinatorServiceClient(conn)
 
 	// Create a car info request.
-	request := &CoordClient.CarInfoRequest{
+	request := &api.CarInfoRequest{
 		Identifier:  "car12",
-		Position:    &CoordClient.Coordinate{X: 1, Y: 1},
-		Route:       []*CoordClient.Coordinate{},
+		Position:    &api.Coordinate{X: 2, Y: 2},
+		Route:       []*api.Coordinate{},
 		ActiveRoute: true,
 	}
 
 	// Send the car info request to the server.
-	stream, err := client.ReceiveCarInfo(context.Background(), request)
+	stream, err := client.SendCarInfo(context.Background(), request)
 	if err != nil {
 		log.Fatalf("Failed to send car info: %v", err)
 	}

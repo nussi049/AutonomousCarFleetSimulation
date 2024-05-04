@@ -4,7 +4,7 @@
 // - protoc             v5.26.1
 // source: coordinator.proto
 
-package CoordClient
+package api
 
 import (
 	context "context"
@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CoordinatorService_ReceiveCarInfo_FullMethodName = "/CoordinatorService/ReceiveCarInfo"
+	CoordinatorService_SendCarInfo_FullMethodName = "/CoordinatorService/SendCarInfo"
 )
 
 // CoordinatorServiceClient is the client API for CoordinatorService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CoordinatorServiceClient interface {
-	ReceiveCarInfo(ctx context.Context, in *CarInfoRequest, opts ...grpc.CallOption) (CoordinatorService_ReceiveCarInfoClient, error)
+	SendCarInfo(ctx context.Context, in *CarInfoRequest, opts ...grpc.CallOption) (CoordinatorService_SendCarInfoClient, error)
 }
 
 type coordinatorServiceClient struct {
@@ -37,12 +37,12 @@ func NewCoordinatorServiceClient(cc grpc.ClientConnInterface) CoordinatorService
 	return &coordinatorServiceClient{cc}
 }
 
-func (c *coordinatorServiceClient) ReceiveCarInfo(ctx context.Context, in *CarInfoRequest, opts ...grpc.CallOption) (CoordinatorService_ReceiveCarInfoClient, error) {
-	stream, err := c.cc.NewStream(ctx, &CoordinatorService_ServiceDesc.Streams[0], CoordinatorService_ReceiveCarInfo_FullMethodName, opts...)
+func (c *coordinatorServiceClient) SendCarInfo(ctx context.Context, in *CarInfoRequest, opts ...grpc.CallOption) (CoordinatorService_SendCarInfoClient, error) {
+	stream, err := c.cc.NewStream(ctx, &CoordinatorService_ServiceDesc.Streams[0], CoordinatorService_SendCarInfo_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &coordinatorServiceReceiveCarInfoClient{stream}
+	x := &coordinatorServiceSendCarInfoClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -52,16 +52,16 @@ func (c *coordinatorServiceClient) ReceiveCarInfo(ctx context.Context, in *CarIn
 	return x, nil
 }
 
-type CoordinatorService_ReceiveCarInfoClient interface {
+type CoordinatorService_SendCarInfoClient interface {
 	Recv() (*CarInfoResponse, error)
 	grpc.ClientStream
 }
 
-type coordinatorServiceReceiveCarInfoClient struct {
+type coordinatorServiceSendCarInfoClient struct {
 	grpc.ClientStream
 }
 
-func (x *coordinatorServiceReceiveCarInfoClient) Recv() (*CarInfoResponse, error) {
+func (x *coordinatorServiceSendCarInfoClient) Recv() (*CarInfoResponse, error) {
 	m := new(CarInfoResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (x *coordinatorServiceReceiveCarInfoClient) Recv() (*CarInfoResponse, error
 // All implementations must embed UnimplementedCoordinatorServiceServer
 // for forward compatibility
 type CoordinatorServiceServer interface {
-	ReceiveCarInfo(*CarInfoRequest, CoordinatorService_ReceiveCarInfoServer) error
+	SendCarInfo(*CarInfoRequest, CoordinatorService_SendCarInfoServer) error
 	mustEmbedUnimplementedCoordinatorServiceServer()
 }
 
@@ -81,8 +81,8 @@ type CoordinatorServiceServer interface {
 type UnimplementedCoordinatorServiceServer struct {
 }
 
-func (UnimplementedCoordinatorServiceServer) ReceiveCarInfo(*CarInfoRequest, CoordinatorService_ReceiveCarInfoServer) error {
-	return status.Errorf(codes.Unimplemented, "method ReceiveCarInfo not implemented")
+func (UnimplementedCoordinatorServiceServer) SendCarInfo(*CarInfoRequest, CoordinatorService_SendCarInfoServer) error {
+	return status.Errorf(codes.Unimplemented, "method SendCarInfo not implemented")
 }
 func (UnimplementedCoordinatorServiceServer) mustEmbedUnimplementedCoordinatorServiceServer() {}
 
@@ -97,24 +97,24 @@ func RegisterCoordinatorServiceServer(s grpc.ServiceRegistrar, srv CoordinatorSe
 	s.RegisterService(&CoordinatorService_ServiceDesc, srv)
 }
 
-func _CoordinatorService_ReceiveCarInfo_Handler(srv interface{}, stream grpc.ServerStream) error {
+func _CoordinatorService_SendCarInfo_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(CarInfoRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(CoordinatorServiceServer).ReceiveCarInfo(m, &coordinatorServiceReceiveCarInfoServer{stream})
+	return srv.(CoordinatorServiceServer).SendCarInfo(m, &coordinatorServiceSendCarInfoServer{stream})
 }
 
-type CoordinatorService_ReceiveCarInfoServer interface {
+type CoordinatorService_SendCarInfoServer interface {
 	Send(*CarInfoResponse) error
 	grpc.ServerStream
 }
 
-type coordinatorServiceReceiveCarInfoServer struct {
+type coordinatorServiceSendCarInfoServer struct {
 	grpc.ServerStream
 }
 
-func (x *coordinatorServiceReceiveCarInfoServer) Send(m *CarInfoResponse) error {
+func (x *coordinatorServiceSendCarInfoServer) Send(m *CarInfoResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -127,8 +127,8 @@ var CoordinatorService_ServiceDesc = grpc.ServiceDesc{
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "ReceiveCarInfo",
-			Handler:       _CoordinatorService_ReceiveCarInfo_Handler,
+			StreamName:    "SendCarInfo",
+			Handler:       _CoordinatorService_SendCarInfo_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "./CoordClient";
+option go_package = "./api";
 
 
 message Coordinate {
@@ -19,5 +19,5 @@ message CarInfoResponse {
 }
 
 service CoordinatorService {
-  rpc ReceiveCarInfo(CarInfoRequest) returns (stream CarInfoResponse) {}
+  rpc SendCarInfo(CarInfoRequest) returns (stream CarInfoResponse) {}
 }

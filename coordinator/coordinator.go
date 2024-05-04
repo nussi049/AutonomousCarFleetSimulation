@@ -1,7 +1,7 @@
 package coordinator
 
 import (
-	"AutonomousCarFleetSimulation/coordinator/CoordClient"
+	"AutonomousCarFleetSimulation/api"
 	"AutonomousCarFleetSimulation/utils"
 	"net"
 	"strings"
@@ -72,10 +72,10 @@ var settings = DisplaySettings{
 }
 
 type CoordinatorServiceServer struct {
-	CoordClient.UnimplementedCoordinatorServiceServer
+	api.UnimplementedCoordinatorServiceServer
 }
 
-func (s *CoordinatorServiceServer) ReceiveCarInfo(req *CoordClient.CarInfoRequest, srv CoordClient.CoordinatorService_ReceiveCarInfoServer) error {
+func (s *CoordinatorServiceServer) SendCarInfo(req *api.CarInfoRequest, srv api.CoordinatorService_SendCarInfoServer) error {
 	// Extract CarInfo from the request and send it to the channel
 	carInfo := utils.CarInfo{
 		Identifier:  req.Identifier,
@@ -89,12 +89,12 @@ func (s *CoordinatorServiceServer) ReceiveCarInfo(req *CoordClient.CarInfoReques
 	log.Println("Successfully sent CarInfo to channel")
 
 	// Return success message
-	return srv.Send(&CoordClient.CarInfoResponse{
+	return srv.Send(&api.CarInfoResponse{
 		Message: "Car info received successfully",
 	})
 }
 
-func convertCoordinates(coords []*CoordClient.Coordinate) []utils.Coordinate {
+func convertCoordinates(coords []*api.Coordinate) []utils.Coordinate {
 	var converted []utils.Coordinate
 	for _, c := range coords {
 		converted = append(converted, utils.Coordinate{X: c.X, Y: c.Y})
@@ -108,7 +108,7 @@ func startServer() {
 
 	// Register your server implementation
 	coordinatorServer := &CoordinatorServiceServer{}
-	CoordClient.RegisterCoordinatorServiceServer(server, coordinatorServer)
+	api.RegisterCoordinatorServiceServer(server, coordinatorServer)
 
 	// Start the server on a specific port
 	listener, err := net.Listen("tcp", ":50051")
