@@ -1,7 +1,7 @@
 package main
 
 import (
-	coordinator "AutonomousCarFleetSimulation/Coordinator"
+	coordinator "AutonomousCarFleetSimulation/coordinator"
 )
 
 func main() {

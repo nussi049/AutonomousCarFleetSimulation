@@ -1,10 +1,11 @@
 package coordinator
 
 import (
-	"fmt"
-	"math/rand"
+	"AutonomousCarFleetSimulation/coordinator/CoordClient"
+	"AutonomousCarFleetSimulation/utils"
+	"net"
 	"strings"
-	"time"
+	"sync"
 
 	"log"
 	"os"
@@ -13,7 +14,16 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget/material"
+	"google.golang.org/grpc"
 )
+
+var (
+	carinfo      = make([]utils.CarInfo, 0)
+	carinfoMutex sync.Mutex
+	carInfoCh    = make(chan utils.CarInfo)
+)
+
+var gridData = make([][]string, 8)
 
 type DisplaySettings struct {
 	EmptyAscii string
@@ -21,9 +31,7 @@ type DisplaySettings struct {
 	RouteAscii string
 }
 
-var gridData = make([][]string, 8)
-
-func createEmptyString(carString string) string {
+func createEmptyString() string {
 	height := 4
 	width := 13
 
@@ -58,13 +66,66 @@ func createSquare() string {
 }
 
 var settings = DisplaySettings{
-	EmptyAscii: createEmptyString("  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'"),
+	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
 }
 
+type CoordinatorServiceServer struct {
+	CoordClient.UnimplementedCoordinatorServiceServer
+}
+
+func (s *CoordinatorServiceServer) ReceiveCarInfo(req *CoordClient.CarInfoRequest, srv CoordClient.CoordinatorService_ReceiveCarInfoServer) error {
+	// Extract CarInfo from the request and send it to the channel
+	carInfo := utils.CarInfo{
+		Identifier:  req.Identifier,
+		Position:    utils.Coordinate{X: req.Position.X, Y: req.Position.Y},
+		Route:       convertCoordinates(req.Route),
+		ActiveRoute: req.ActiveRoute,
+	}
+
+	// Send CarInfo to the channel
+	carInfoCh <- carInfo
+	log.Println("Successfully sent CarInfo to channel")
+
+	// Return success message
+	return srv.Send(&CoordClient.CarInfoResponse{
+		Message: "Car info received successfully",
+	})
+}
+
+func convertCoordinates(coords []*CoordClient.Coordinate) []utils.Coordinate {
+	var converted []utils.Coordinate
+	for _, c := range coords {
+		converted = append(converted, utils.Coordinate{X: c.X, Y: c.Y})
+	}
+	return converted
+}
+
+func startServer() {
+	// Create a gRPC server
+	server := grpc.NewServer()
+
+	// Register your server implementation
+	coordinatorServer := &CoordinatorServiceServer{}
+	CoordClient.RegisterCoordinatorServiceServer(server, coordinatorServer)
+
+	// Start the server on a specific port
+	listener, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+	log.Println("Server started")
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("Failed to serve: %v", err)
+	}
+}
+
 func Run() {
 
+	go startServer()
+
+	// Create empty datagrid
 	for i := range gridData {
 		gridData[i] = make([]string, 8)
 		for j := range gridData[i] {
@@ -72,12 +133,9 @@ func Run() {
 		}
 	}
 
-	fmt.Println("Car ASCII:")
-	fmt.Println(settings.CarAscii)
-
 	go func() {
 		window := new(app.Window)
-		err := run(window)
+		err := display(window)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -86,7 +144,8 @@ func Run() {
 	app.Main()
 
 }
-func run(window *app.Window) error {
+
+func display(window *app.Window) error {
 	window.Option(app.Size(2500, 2500))
 
 	theme := material.NewTheme()
@@ -95,23 +154,10 @@ func run(window *app.Window) error {
 
 	var ops op.Ops
 	go func() {
-		for {
-			// Randomly choose a row and column to update
-			row := rand.Intn(len(gridData))
-			col := rand.Intn(len(gridData[row]))
-
-			// Randomly switch between CarAscii and EmptyAscii
-			if rand.Intn(2) == 0 {
-				gridData[row][col] = settings.EmptyAscii
-			} else {
-				gridData[row][col] = settings.CarAscii
-			}
-
-			// Trigger a rerender of the app
+		for carInfo := range carInfoCh {
+			var oldCarInfo utils.CarInfo = updateCarinfo(carInfo)
+			updateGridData(oldCarInfo, carInfo)
 			window.Invalidate()
-
-			// Sleep for a while before the next update
-			time.Sleep(1 * time.Second)
 		}
 	}()
 
@@ -127,6 +173,38 @@ func run(window *app.Window) error {
 			e.Frame(gtx.Ops)
 		}
 	}
+}
+
+func updateCarinfo(newCarInfo utils.CarInfo) utils.CarInfo {
+	carinfoMutex.Lock()
+	defer carinfoMutex.Unlock()
+
+	var oldCarInfo utils.CarInfo
+	for i, car := range carinfo {
+		if car.Identifier == newCarInfo.Identifier {
+			// Save the old carinfo
+			oldCarInfo = car
+
+			// Update the carinfo slice with the new carinfo
+			carinfo[i] = newCarInfo
+
+			return oldCarInfo
+		}
+	}
+
+	carinfo = append(carinfo, newCarInfo)
+
+	return utils.CarInfo{}
+}
+
+func updateGridData(oldCarInfo utils.CarInfo, newCarInfo utils.CarInfo) {
+	carinfoMutex.Lock()
+	defer carinfoMutex.Unlock()
+
+	// Delete old position of car
+	gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = settings.EmptyAscii
+	// set new position of car
+	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = settings.CarAscii
 }
 
 func drawGrid(gtx layout.Context, th *material.Theme) layout.Dimensions {

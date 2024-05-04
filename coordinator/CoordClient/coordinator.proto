@@ -1,0 +1,23 @@
+syntax = "proto3";
+option go_package = "./CoordClient";
+
+
+message Coordinate {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+message CarInfoRequest {
+  string identifier = 1;
+  Coordinate position = 2;
+  repeated Coordinate route = 3;
+  bool active_route = 4;
+}
+
+message CarInfoResponse {
+  string message = 1;
+}
+
+service CoordinatorService {
+  rpc ReceiveCarInfo(CarInfoRequest) returns (stream CarInfoResponse) {}
+}

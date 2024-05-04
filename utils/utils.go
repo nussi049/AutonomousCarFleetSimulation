@@ -1,7 +1,7 @@
 package utils
 
 type Coordinate struct {
-	X, Y int
+	X, Y int32
 }
 
 type CarInfo struct {
