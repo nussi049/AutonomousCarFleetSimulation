@@ -1,8 +1,12 @@
 package utils
 
+type Coordinate struct {
+	X, Y int
+}
+
 type CarInfo struct {
 	Identifier  string
-	PositionX   int
-	PositionY   int
+	Position    Coordinate
+	Route       []Coordinate
 	ActiveRoute bool
 }

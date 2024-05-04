@@ -23,8 +23,8 @@ func NewCarClient(identifier string, posX, posY int) *CarClient {
 	return &CarClient{
 		Car: utils.CarInfo{
 			Identifier:  identifier,
-			PositionX:   posX,
-			PositionY:   posY,
+			Position:    utils.Coordinate{X: 10, Y: 20},
+			Route:       []utils.Coordinate{},
 			ActiveRoute: false,
 		},
 		Conn: conn,
@@ -32,9 +32,9 @@ func NewCarClient(identifier string, posX, posY int) *CarClient {
 }
 
 func (c *CarClient) Drive() {
-	c.Car.PositionX += 1
-	c.Car.PositionY += 1
-	fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.PositionX, c.Car.PositionY)
+	c.Car.Position.X += 1
+	c.Car.Position.Y += 1
+	fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
 }
 
 func (c *CarClient) SendPosition() {
