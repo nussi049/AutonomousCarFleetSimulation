@@ -1,9 +1,9 @@
 package main
 
 import (
-	carclient "AutonomousCarFleetSimulation/CarClient"
+	carclient "AutonomousCarFleetSimulation/carClient"
 )
 
 func main() {
-	carclient.Run()
+	carclient.StartClient()
 }
