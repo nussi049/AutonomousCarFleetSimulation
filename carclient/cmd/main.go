@@ -1,7 +1,7 @@
 package main
 
 import (
-	carclient "AutonomousCarFleetSimulation/carClient"
+	carclient "AutonomousCarFleetSimulation/carclient"
 )
 
 func main() {

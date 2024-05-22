@@ -1,10 +1,27 @@
 syntax = "proto3";
 option go_package = "./api";
 
-
 message Coordinate {
   int32 x = 1;
   int32 y = 2;
+}
+
+message RouteRequest {
+  string identifier = 1;
+  repeated Coordinate route = 2;
+}
+
+message RouteResponse {
+  string message = 1;
+}
+
+message PositionRequest {
+  string identifier = 1;
+}
+
+message PositionResponse {
+  string identifier = 1;
+  Coordinate position = 2;
 }
 
 message CarInfoRequest {
@@ -18,6 +35,11 @@ message CarInfoResponse {
   string message = 1;
 }
 
+service CarClientService {
+  rpc ReceiveRoute (RouteRequest) returns (RouteResponse);
+  rpc SendPosition (PositionRequest) returns (PositionResponse);
+}
+
 service CoordinatorService {
-  rpc SendCarInfo(CarInfoRequest) returns (stream CarInfoResponse) {}
+  rpc SendCarInfo(CarInfoRequest) returns (stream CarInfoResponse);
 }

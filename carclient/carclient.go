@@ -5,7 +5,7 @@ import (
 	"AutonomousCarFleetSimulation/utils"
 	"context"
 	"fmt"
-	"io"
+
 	"math/rand"
 	"time"
 
@@ -20,21 +20,21 @@ func init() {
 type Client struct {
 	Car         utils.CarInfo
 	Conn        *grpc.ClientConn
-	Client      api.CoordinatorServiceClient
+	Client      api.CarClientServiceClient
 	GridWidth   int
 	GridHeight  int
 	LastMoveDir int // 0: up, 1: down, 2: left, 3: right
 }
 
 func newCarClient(identifier string, startPos utils.Coordinate, gridWidth, gridHeight int) *Client {
-	// Establish a connection to the coordinator service via gRPC
+	// Establish a connection to the car client service via gRPC
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Println("Failed to connect to coordinator:", err)
+		fmt.Println("Failed to connect to car client service:", err)
 		return nil
 	}
 
-	client := api.NewCoordinatorServiceClient(conn)
+	client := api.NewCarClientServiceClient(conn)
 
 	return &Client{
 		Car: utils.CarInfo{
@@ -130,30 +130,17 @@ func (c *Client) oppositeDirection() int {
 
 func (c *Client) sendPosition() {
 	// Create and send a position update request
-	req := &api.CarInfoRequest{
-		Identifier:  c.Car.Identifier,
-		Position:    &api.Coordinate{X: c.Car.Position.X, Y: c.Car.Position.Y},
-		Route:       nil, // Not updating the route in this call
-		ActiveRoute: c.Car.ActiveRoute,
+	req := &api.PositionRequest{
+		Identifier: c.Car.Identifier,
 	}
 
-	stream, err := c.Client.SendCarInfo(context.Background(), req)
+	resp, err := c.Client.SendPosition(context.Background(), req)
 	if err != nil {
 		fmt.Println("Error sending position data:", err)
 		return
 	}
 
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			break // No more messages
-		}
-		if err != nil {
-			fmt.Println("Error receiving response from server:", err)
-			return
-		}
-		fmt.Println("Response from server:", resp.Message)
-	}
+	fmt.Printf("Sent position: X: %d, Y: %d\n", resp.Position.X, resp.Position.Y)
 }
 
 func (c *Client) periodicPositionUpdate() {
@@ -161,6 +148,44 @@ func (c *Client) periodicPositionUpdate() {
 	for range ticker.C {
 		c.sendPosition()
 	}
+}
+
+func (c *Client) receiveRoute() {
+	req := &api.RouteRequest{
+		Identifier: c.Car.Identifier,
+	}
+
+	resp, err := c.Client.ReceiveRoute(context.Background(), req)
+	if err != nil {
+		fmt.Println("Error receiving route:", err)
+		return
+	}
+
+	fmt.Println("Route received successfully")
+	c.Car.Route = convertFromProtoCoordinates(resp.Route)
+}
+
+func (c *Client) driveRoute() {
+	for len(c.Car.Route) > 0 {
+		c.drive()
+		time.Sleep(1 * time.Second) // Simulate driving time
+	}
+}
+
+func convertToProtoCoordinates(coords []utils.Coordinate) []*api.Coordinate {
+	var protoCoords []*api.Coordinate
+	for _, c := range coords {
+		protoCoords = append(protoCoords, &api.Coordinate{X: c.X, Y: c.Y})
+	}
+	return protoCoords
+}
+
+func convertFromProtoCoordinates(coords []*api.Coordinate) []utils.Coordinate {
+	var converted []utils.Coordinate
+	for _, c := range coords {
+		converted = append(converted, utils.Coordinate{X: c.X, Y: c.Y})
+	}
+	return converted
 }
 
 func StartClient() {
@@ -175,7 +200,14 @@ func StartClient() {
 	fmt.Printf("Starting car: %+v\n", car.Car)
 	go car.startDriving()           // Start driving in a separate goroutine
 	go car.periodicPositionUpdate() // Start periodic updates in a separate goroutine
-	select {}                       // Block forever
+
+	// Example receiving route
+	car.receiveRoute()
+
+	// Example driving route
+	car.driveRoute()
+
+	select {} // Block forever
 }
 
 func (c *Client) startDriving() {
