@@ -36,8 +36,7 @@ message CarInfoResponse {
 }
 
 service CarClientService {
-  rpc ReceiveRoute (RouteRequest) returns (RouteResponse);
-  rpc SendPosition (PositionRequest) returns (PositionResponse);
+  rpc SendRoute (RouteRequest) returns (RouteResponse);
 }
 
 service CoordinatorService {

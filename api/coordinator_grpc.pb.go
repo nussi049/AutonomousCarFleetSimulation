@@ -19,16 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CarClientService_ReceiveRoute_FullMethodName = "/CarClientService/ReceiveRoute"
-	CarClientService_SendPosition_FullMethodName = "/CarClientService/SendPosition"
+	CarClientService_SendRoute_FullMethodName = "/CarClientService/SendRoute"
 )
 
 // CarClientServiceClient is the client API for CarClientService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CarClientServiceClient interface {
-	ReceiveRoute(ctx context.Context, in *RouteRequest, opts ...grpc.CallOption) (*RouteResponse, error)
-	SendPosition(ctx context.Context, in *PositionRequest, opts ...grpc.CallOption) (*PositionResponse, error)
+	SendRoute(ctx context.Context, in *RouteRequest, opts ...grpc.CallOption) (*RouteResponse, error)
 }
 
 type carClientServiceClient struct {
@@ -39,18 +37,9 @@ func NewCarClientServiceClient(cc grpc.ClientConnInterface) CarClientServiceClie
 	return &carClientServiceClient{cc}
 }
 
-func (c *carClientServiceClient) ReceiveRoute(ctx context.Context, in *RouteRequest, opts ...grpc.CallOption) (*RouteResponse, error) {
+func (c *carClientServiceClient) SendRoute(ctx context.Context, in *RouteRequest, opts ...grpc.CallOption) (*RouteResponse, error) {
 	out := new(RouteResponse)
-	err := c.cc.Invoke(ctx, CarClientService_ReceiveRoute_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *carClientServiceClient) SendPosition(ctx context.Context, in *PositionRequest, opts ...grpc.CallOption) (*PositionResponse, error) {
-	out := new(PositionResponse)
-	err := c.cc.Invoke(ctx, CarClientService_SendPosition_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, CarClientService_SendRoute_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +50,7 @@ func (c *carClientServiceClient) SendPosition(ctx context.Context, in *PositionR
 // All implementations must embed UnimplementedCarClientServiceServer
 // for forward compatibility
 type CarClientServiceServer interface {
-	ReceiveRoute(context.Context, *RouteRequest) (*RouteResponse, error)
-	SendPosition(context.Context, *PositionRequest) (*PositionResponse, error)
+	SendRoute(context.Context, *RouteRequest) (*RouteResponse, error)
 	mustEmbedUnimplementedCarClientServiceServer()
 }
 
@@ -70,11 +58,8 @@ type CarClientServiceServer interface {
 type UnimplementedCarClientServiceServer struct {
 }
 
-func (UnimplementedCarClientServiceServer) ReceiveRoute(context.Context, *RouteRequest) (*RouteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReceiveRoute not implemented")
-}
-func (UnimplementedCarClientServiceServer) SendPosition(context.Context, *PositionRequest) (*PositionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendPosition not implemented")
+func (UnimplementedCarClientServiceServer) SendRoute(context.Context, *RouteRequest) (*RouteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendRoute not implemented")
 }
 func (UnimplementedCarClientServiceServer) mustEmbedUnimplementedCarClientServiceServer() {}
 
@@ -89,38 +74,20 @@ func RegisterCarClientServiceServer(s grpc.ServiceRegistrar, srv CarClientServic
 	s.RegisterService(&CarClientService_ServiceDesc, srv)
 }
 
-func _CarClientService_ReceiveRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CarClientService_SendRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RouteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CarClientServiceServer).ReceiveRoute(ctx, in)
+		return srv.(CarClientServiceServer).SendRoute(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CarClientService_ReceiveRoute_FullMethodName,
+		FullMethod: CarClientService_SendRoute_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CarClientServiceServer).ReceiveRoute(ctx, req.(*RouteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _CarClientService_SendPosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PositionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CarClientServiceServer).SendPosition(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CarClientService_SendPosition_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CarClientServiceServer).SendPosition(ctx, req.(*PositionRequest))
+		return srv.(CarClientServiceServer).SendRoute(ctx, req.(*RouteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -133,12 +100,8 @@ var CarClientService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*CarClientServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ReceiveRoute",
-			Handler:    _CarClientService_ReceiveRoute_Handler,
-		},
-		{
-			MethodName: "SendPosition",
-			Handler:    _CarClientService_SendPosition_Handler,
+			MethodName: "SendRoute",
+			Handler:    _CarClientService_SendRoute_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
