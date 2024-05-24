@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	"time"
 
 	"google.golang.org/grpc"
@@ -165,21 +166,12 @@ func (c *Car) periodicCarInfoUpdate() {
 	}
 }
 
-func (c *Car) sendRoute(route []utils.Coordinate) {
-	req := &api.RouteRequest{
-		Identifier: c.Car.Identifier,
-		Route:      convertToProtoCoordinates(route), // Ensure route is included
-	}
-
-	resp, err := c.RouteClient.SendRoute(context.Background(), req) // Use RouteClient for SendRoute
-	if err != nil {
-		fmt.Println("Error sending route:", err)
-		return
-	}
-
-	fmt.Println("Route sent successfully:", resp.Message)
-	c.Car.Route = convertFromProtoCoordinates(req.Route) // Set the car's route
-	c.Car.ActiveRoute = true                             // Set active route to true
+func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteResponse, error) {
+	route := convertFromProtoCoordinates(req.Route)
+	c.Car.Route = route
+	c.Car.ActiveRoute = true
+	fmt.Println("Route received successfully")
+	return &api.RouteResponse{Message: "Route received successfully"}, nil
 }
 
 func (c *Car) driveRoute() {
@@ -190,7 +182,9 @@ func (c *Car) driveRoute() {
 		c.sendCarInfo()             // Send updated position to the coordinator
 		time.Sleep(1 * time.Second) // Simulate driving time
 	}
-	c.Car.ActiveRoute = false // Route is completed
+	fmt.Println("Route completed. Switching to random drive after 5 seconds.")
+	time.Sleep(5 * time.Second) // Stay at the final position for 5 seconds
+	c.Car.ActiveRoute = false   // Route is completed, switch to random drive
 }
 
 func convertToProtoCoordinates(coords []utils.Coordinate) []*api.Coordinate {
@@ -209,6 +203,30 @@ func convertFromProtoCoordinates(coords []*api.Coordinate) []utils.Coordinate {
 	return converted
 }
 
+type CarClientServiceServer struct {
+	api.UnimplementedCarClientServiceServer
+	car *Car
+}
+
+func (s *CarClientServiceServer) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteResponse, error) {
+	return s.car.SendRoute(ctx, req)
+}
+
+func startCarClientServer(car *Car) {
+	server := grpc.NewServer()
+	api.RegisterCarClientServiceServer(server, &CarClientServiceServer{car: car})
+
+	listener, err := net.Listen("tcp", ":50052")
+	if err != nil {
+		fmt.Println("Failed to listen:", err)
+		return
+	}
+	fmt.Println("Car client server started")
+	if err := server.Serve(listener); err != nil {
+		fmt.Println("Failed to serve:", err)
+	}
+}
+
 func StartClient() {
 	startPos := utils.Coordinate{X: 3, Y: 3}
 	gridWidth := 8
@@ -222,7 +240,10 @@ func StartClient() {
 	go car.startDriving()          // Start driving in a separate goroutine
 	go car.periodicCarInfoUpdate() // Start periodic updates in a separate goroutine
 
-	// Example route
+	// Start the car client gRPC server
+	go startCarClientServer(car)
+
+	// Example route for testing
 	route := []utils.Coordinate{
 		{X: 3, Y: 4},
 		{X: 3, Y: 5},
@@ -231,8 +252,9 @@ func StartClient() {
 		{X: 5, Y: 6},
 	}
 
-	// Send and drive the route
-	car.sendRoute(route)
+	// Manually set the route for testing
+	car.Car.Route = route
+	car.Car.ActiveRoute = true
 
 	select {} // Block forever
 }
