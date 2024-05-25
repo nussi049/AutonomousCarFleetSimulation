@@ -22,7 +22,6 @@ type Car struct {
 	Car         utils.CarInfo
 	Conn        *grpc.ClientConn
 	Client      api.CoordinatorServiceClient
-	RouteClient api.CarClientServiceClient // Added to handle SendRoute
 	GridWidth   int
 	GridHeight  int
 	LastMoveDir int // 0: up, 1: down, 2: left, 3: right
@@ -37,7 +36,6 @@ func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight 
 	}
 
 	client := api.NewCoordinatorServiceClient(conn)
-	routeClient := api.NewCarClientServiceClient(conn) // Added to handle SendRoute
 
 	return &Car{
 		Car: utils.CarInfo{
@@ -48,7 +46,6 @@ func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight 
 		},
 		Conn:        conn,
 		Client:      client,
-		RouteClient: routeClient, // Added to handle SendRoute
 		GridWidth:   gridWidth,
 		GridHeight:  gridHeight,
 		LastMoveDir: -1, // Initialize to an invalid direction
