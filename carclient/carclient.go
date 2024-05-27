@@ -8,6 +8,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -25,6 +26,7 @@ type Car struct {
 	GridWidth   int
 	GridHeight  int
 	LastMoveDir int // 0: up, 1: down, 2: left, 3: right
+	mu          sync.Mutex
 }
 
 func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight int) *Car {
@@ -53,13 +55,18 @@ func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight 
 }
 
 func (c *Car) drive() {
+	c.mu.Lock()
 	if c.Car.ActiveRoute && len(c.Car.Route) > 0 {
+		c.mu.Unlock()
 		fmt.Println("Switching to driveRoute mode")
 		c.driveRoute()
 	} else {
+		c.mu.Unlock()
 		c.randomDrive()
 	}
+	c.mu.Lock()
 	fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+	c.mu.Unlock()
 	c.sendCarInfo() // Send updated position to the coordinator
 }
 
@@ -108,7 +115,9 @@ func (c *Car) randomDrive() {
 
 		// If the new position is valid and not reversing the last move, update the position and break the loop
 		c.LastMoveDir = moveDirection
+		c.mu.Lock()
 		c.Car.Position = newPosition
+		c.mu.Unlock()
 		break
 	}
 }
@@ -130,12 +139,14 @@ func (c *Car) oppositeDirection() int {
 
 func (c *Car) sendCarInfo() {
 	// Create and send a CarInfo request
+	c.mu.Lock()
 	req := &api.CarInfoRequest{
 		Identifier:  c.Car.Identifier,
 		Position:    &api.Coordinate{X: c.Car.Position.X, Y: c.Car.Position.Y},
 		Route:       convertToProtoCoordinates(c.Car.Route),
 		ActiveRoute: c.Car.ActiveRoute,
 	}
+	c.mu.Unlock()
 
 	stream, err := c.Client.SendCarInfo(context.Background(), req)
 	if err != nil {
@@ -165,23 +176,29 @@ func (c *Car) periodicCarInfoUpdate() {
 
 func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteResponse, error) {
 	route := convertFromProtoCoordinates(req.Route)
+	c.mu.Lock()
 	c.Car.Route = route
 	c.Car.ActiveRoute = true
+	c.mu.Unlock()
 	fmt.Println("Route received successfully")
 	return &api.RouteResponse{Message: "Route received successfully"}, nil
 }
 
 func (c *Car) driveRoute() {
 	for len(c.Car.Route) > 0 {
+		c.mu.Lock()
 		c.Car.Position = c.Car.Route[0] // Update the current position to the first element
 		c.Car.Route = c.Car.Route[1:]   // Remove the first element from the route
 		fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.mu.Unlock()
 		c.sendCarInfo()             // Send updated position to the coordinator
 		time.Sleep(1 * time.Second) // Simulate driving time
 	}
 	fmt.Println("Route completed. Switching to random drive after 5 seconds.")
 	time.Sleep(5 * time.Second) // Stay at the final position for 5 seconds
-	c.Car.ActiveRoute = false   // Route is completed, switch to random drive
+	c.mu.Lock()
+	c.Car.ActiveRoute = false // Route is completed, switch to random drive
+	c.mu.Unlock()
 }
 
 func convertToProtoCoordinates(coords []utils.Coordinate) []*api.Coordinate {
@@ -250,8 +267,10 @@ func StartClient() {
 	}
 
 	// Manually set the route for testing
+	car.mu.Lock()
 	car.Car.Route = route
 	car.Car.ActiveRoute = true
+	car.mu.Unlock()
 
 	select {} // Block forever
 }
