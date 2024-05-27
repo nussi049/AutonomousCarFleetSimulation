@@ -218,7 +218,7 @@ func convertFromProtoCoordinates(coords []*api.Coordinate) []utils.Coordinate {
 }
 
 type CarClientServiceServer struct {
-	api.UnimplementedCarClientServiceServer
+	api.CarClientServiceServer
 	car *Car
 }
 
@@ -245,7 +245,7 @@ func StartClient() {
 	startPos := utils.Coordinate{X: 3, Y: 3}
 	gridWidth := 8
 	gridHeight := 8
-	car := newCar("TestCar1", startPos, gridWidth, gridHeight)
+	car := newCar("localhost:50052", startPos, gridWidth, gridHeight)
 	if car == nil {
 		fmt.Println("Failed to create car client")
 		return

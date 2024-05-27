@@ -3,9 +3,12 @@ package coordinator
 import (
 	"AutonomousCarFleetSimulation/api"
 	"AutonomousCarFleetSimulation/utils"
+	"context"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"log"
 	"os"
@@ -21,11 +24,13 @@ var (
 	carinfo      = make([]utils.CarInfo, 0)
 	carinfoMutex sync.Mutex
 	carInfoCh    = make(chan utils.CarInfo)
+	routeCh      = make(chan []utils.Coordinate)
 )
 
 var gridData = make([][]string, 8)
 
 type DisplaySettings struct {
+	GridSize   int
 	EmptyAscii string
 	CarAscii   string
 	RouteAscii string
@@ -66,20 +71,21 @@ func createSquare() string {
 }
 
 var settings = DisplaySettings{
+	GridSize:   8,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
 }
 
 type CoordinatorServiceServer struct {
-	api.UnimplementedCoordinatorServiceServer
+	api.CoordinatorServiceServer
 }
 
 func (s *CoordinatorServiceServer) SendCarInfo(req *api.CarInfoRequest, srv api.CoordinatorService_SendCarInfoServer) error {
 	// Extract CarInfo from the request and send it to the channel
 	carInfo := utils.CarInfo{
 		Identifier:  req.Identifier,
-		Position:    utils.Coordinate{X: req.Position.X, Y: req.Position.Y},
+		Position:    utils.Coordinate{X: req.Position.GetX(), Y: req.Position.GetY()},
 		Route:       convertCoordinates(req.Route),
 		ActiveRoute: req.ActiveRoute,
 	}
@@ -97,7 +103,7 @@ func (s *CoordinatorServiceServer) SendCarInfo(req *api.CarInfoRequest, srv api.
 func convertCoordinates(coords []*api.Coordinate) []utils.Coordinate {
 	var converted []utils.Coordinate
 	for _, c := range coords {
-		converted = append(converted, utils.Coordinate{X: c.X, Y: c.Y})
+		converted = append(converted, utils.Coordinate{X: c.GetX(), Y: c.GetY()})
 	}
 	return converted
 }
@@ -121,17 +127,83 @@ func startServer() {
 	}
 }
 
+func calculatePath(start, end utils.Coordinate) []utils.Coordinate {
+	var path []utils.Coordinate
+
+	// Bewegungen in X-Richtung
+	for x := start.X; x != end.X; {
+		path = append(path, utils.Coordinate{X: x, Y: start.Y})
+		if x < end.X {
+			x++
+		} else {
+			x--
+		}
+	}
+
+	// Bewegungen in Y-Richtung
+	for y := start.Y; y != end.Y; {
+		path = append(path, utils.Coordinate{X: end.X, Y: y})
+		if y < end.Y {
+			y++
+		} else {
+			y--
+		}
+	}
+
+	// Füge die Endkoordinate hinzu
+	path = append(path, end)
+
+	return path
+}
+
+func generateRandomRoute() {
+	for {
+		time.Sleep(20 * time.Second)
+		start := utils.Coordinate{X: int32(rand.Intn(int(settings.GridSize))), Y: int32(rand.Intn(int(settings.GridSize)))}
+		end := utils.Coordinate{X: int32(rand.Intn(int(settings.GridSize))), Y: int32(rand.Intn(int(settings.GridSize)))}
+		route := calculatePath(start, end)
+		routeCh <- route
+		log.Printf("Generated Random Route from %v to %v and path %v", start, end, route)
+	}
+}
+
+func sendRoute(carinfo utils.CarInfo) {
+	// Set up a connection to the gRPC server.
+	conn, err := grpc.Dial(carinfo.Identifier, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Failed to dial server: %v", err)
+	}
+	defer conn.Close()
+
+	// Create a client instance.
+	client := api.NewCarClientServiceClient(conn)
+
+	// Create a car info request.
+	request := &api.RouteRequest{
+		Route: []*api.Coordinate{},
+	}
+
+	// Send the car info request to the server.
+	response, err := client.SendRoute(context.Background(), request)
+	if err != nil {
+		log.Fatalf("Failed to send route to car: %v", err)
+	}
+	log.Printf("Response from server: %s", response.Message)
+}
+
 func Run() {
 
 	go startServer()
 
 	// Create empty datagrid
 	for i := range gridData {
-		gridData[i] = make([]string, 8)
+		gridData[i] = make([]string, settings.GridSize)
 		for j := range gridData[i] {
 			gridData[i][j] = settings.EmptyAscii
 		}
 	}
+
+	go generateRandomRoute()
 
 	go func() {
 		window := new(app.Window)
@@ -154,10 +226,17 @@ func display(window *app.Window) error {
 
 	var ops op.Ops
 	go func() {
-		for carInfo := range carInfoCh {
-			var oldCarInfo utils.CarInfo = updateCarinfo(carInfo)
-			updateGridData(oldCarInfo, carInfo)
-			window.Invalidate()
+		for {
+			select {
+			case carInfo := <-carInfoCh:
+				var oldCarInfo utils.CarInfo = updateCarinfo(carInfo)
+				updateGridData(oldCarInfo, carInfo)
+				window.Invalidate()
+			case route := <-routeCh:
+				updateGridDataRoute(route)
+				sendRoute(carinfo[0]) //TODO calculate which car has shortestPath to starting point of route
+				window.Invalidate()
+			}
 		}
 	}()
 
@@ -205,6 +284,12 @@ func updateGridData(oldCarInfo utils.CarInfo, newCarInfo utils.CarInfo) {
 	gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = settings.EmptyAscii
 	// set new position of car
 	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = settings.CarAscii
+}
+
+func updateGridDataRoute(route []utils.Coordinate) {
+	for _, coord := range route {
+		gridData[coord.Y][coord.X] = settings.RouteAscii
+	}
 }
 
 func drawGrid(gtx layout.Context, th *material.Theme) layout.Dimensions {
