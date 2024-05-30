@@ -81,7 +81,7 @@ func startServer() {
 
 func generateRandomRoute() {
 	for {
-		time.Sleep(20 * time.Second)
+		time.Sleep(50 * time.Second)
 		start := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
 		end := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
 		route := utils.CalculatePath(start, end)

@@ -29,7 +29,7 @@ type Car struct {
 	mu          sync.Mutex
 }
 
-func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight int) *Car {
+func newCar(identifier string, startPos utils.Coordinate) *Car {
 	// Establish a connection to the car client service via gRPC
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -48,8 +48,8 @@ func newCar(identifier string, startPos utils.Coordinate, gridWidth, gridHeight 
 		},
 		Conn:        conn,
 		Client:      client,
-		GridWidth:   gridWidth,
-		GridHeight:  gridHeight,
+		GridWidth:   utils.Settings.GridSize,
+		GridHeight:  utils.Settings.GridSize,
 		LastMoveDir: -1, // Initialize to an invalid direction
 	}
 }
@@ -186,7 +186,11 @@ func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteR
 }
 
 func (c *Car) driveRoute() {
-	// First, drive to the start of the route
+	if len(c.Car.Route) == 0 {
+		return
+	}
+
+	// Drive to the first position in the route
 	toRouteStart := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
 	fmt.Println("Path to route start:", toRouteStart)
 
@@ -199,11 +203,10 @@ func (c *Car) driveRoute() {
 		time.Sleep(1 * time.Second)
 	}
 
-	// Then, drive the actual route
-	for len(c.Car.Route) > 0 {
-		toRouteDrive := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
-		fmt.Println("Driving along the route:", toRouteDrive)
-		for _, coord := range toRouteDrive {
+	// Drive the remaining route
+	for i := 1; i < len(c.Car.Route); i++ {
+		toNext := utils.CalculatePath(c.Car.Position, c.Car.Route[i])
+		for _, coord := range toNext {
 			c.mu.Lock()
 			c.Car.Position = coord
 			fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
@@ -211,16 +214,14 @@ func (c *Car) driveRoute() {
 			c.sendCarInfo()
 			time.Sleep(1 * time.Second)
 		}
-
-		// Remove the first element from the route
-		c.mu.Lock()
-		c.Car.Route = c.Car.Route[1:]
-		c.mu.Unlock()
 	}
-	fmt.Println("Route completed. Switching to random drive after 5 seconds.")
+
+	fmt.Println("Route completed. Checking for new route or switching to random drive after 5 seconds.")
 	time.Sleep(5 * time.Second) // Stay at the final position for 5 seconds
 	c.mu.Lock()
-	c.Car.ActiveRoute = false // Route is completed, switch to random drive
+	if len(c.Car.Route) == 0 {
+		c.Car.ActiveRoute = false // Route is completed, switch to random drive if no new route
+	}
 	c.mu.Unlock()
 }
 
@@ -266,9 +267,7 @@ func startCarClientServer(car *Car) {
 
 func StartClient() {
 	startPos := utils.Coordinate{X: 3, Y: 3}
-	gridWidth := 8
-	gridHeight := 8
-	car := newCar("localhost:50052", startPos, gridWidth, gridHeight)
+	car := newCar("localhost:50052", startPos)
 	if car == nil {
 		fmt.Println("Failed to create car client")
 		return

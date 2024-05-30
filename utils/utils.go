@@ -60,8 +60,8 @@ func createSquare() string {
 }
 
 var Settings = DisplaySettings{
-	GridSize:   24,
-	FontSize:   6,
+	GridSize:   18,
+	FontSize:   10,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
