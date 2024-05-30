@@ -6,7 +6,6 @@ import (
 	"context"
 	"math/rand"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -29,57 +28,6 @@ var (
 )
 
 var gridData = make([][]string, 8)
-
-type DisplaySettings struct {
-	GridSize   int
-	FontSize   int
-	EmptyAscii string
-	CarAscii   string
-	RouteAscii string
-}
-
-func createEmptyString() string {
-	height := 4
-	width := 13
-
-	var emptyString strings.Builder
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
-			emptyString.WriteByte(' ')
-
-		}
-		emptyString.WriteByte('\n')
-	}
-
-	return emptyString.String()
-}
-
-func createSquare() string {
-	height := 4
-	width := 13
-	var square strings.Builder
-	square.WriteByte('\n')
-
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
-			square.WriteByte('X')
-		}
-		if i != height-1 {
-			square.WriteByte('\n')
-		}
-
-	}
-
-	return square.String()
-}
-
-var settings = DisplaySettings{
-	GridSize:   8,
-	FontSize:   6,
-	EmptyAscii: createEmptyString(),
-	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
-	RouteAscii: createSquare(),
-}
 
 type CoordinatorServiceServer struct {
 	api.CoordinatorServiceServer
@@ -133,9 +81,9 @@ func startServer() {
 
 func generateRandomRoute() {
 	for {
-		time.Sleep(40 * time.Second)
-		start := utils.Coordinate{X: int32(rand.Intn(int(settings.GridSize))), Y: int32(rand.Intn(int(settings.GridSize)))}
-		end := utils.Coordinate{X: int32(rand.Intn(int(settings.GridSize))), Y: int32(rand.Intn(int(settings.GridSize)))}
+		time.Sleep(20 * time.Second)
+		start := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
+		end := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
 		route := utils.CalculatePath(start, end)
 		routeCh <- route
 		log.Printf("Generated Random Route from %v to %v and path %v", start, end, route)
@@ -183,9 +131,9 @@ func Run() {
 
 	// Create empty datagrid
 	for i := range gridData {
-		gridData[i] = make([]string, settings.GridSize)
+		gridData[i] = make([]string, utils.Settings.GridSize)
 		for j := range gridData[i] {
-			gridData[i][j] = settings.EmptyAscii
+			gridData[i][j] = utils.Settings.EmptyAscii
 		}
 	}
 
@@ -288,14 +236,14 @@ func updateGridData(oldCarInfo utils.CarInfo, newCarInfo utils.CarInfo) {
 	defer carinfoMutex.Unlock()
 
 	// Delete old position of car
-	gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = settings.EmptyAscii
+	gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = utils.Settings.EmptyAscii
 	// set new position of car
-	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = settings.CarAscii
+	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = utils.Settings.CarAscii
 }
 
 func updateGridDataRoute(route []utils.Coordinate) {
 	for _, coord := range route {
-		gridData[coord.Y][coord.X] = settings.RouteAscii
+		gridData[coord.Y][coord.X] = utils.Settings.RouteAscii
 	}
 }
 
@@ -316,7 +264,7 @@ func drawRow(gtx layout.Context, th *material.Theme, data []string) layout.Dimen
 		cell := cell
 		widgets = append(widgets, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			label := material.Body1(th, cell)
-			label.TextSize = unit.Sp(settings.FontSize)
+			label.TextSize = unit.Sp(utils.Settings.FontSize)
 			return label.Layout(gtx)
 		}))
 	}
