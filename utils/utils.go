@@ -1,6 +1,9 @@
 package utils
 
-import "math/rand"
+import (
+	"math/rand"
+	"strings"
+)
 
 type Coordinate struct {
 	X, Y int32
@@ -11,6 +14,57 @@ type CarInfo struct {
 	Position    Coordinate
 	Route       []Coordinate
 	ActiveRoute bool
+}
+
+type DisplaySettings struct {
+	GridSize   int
+	FontSize   int
+	EmptyAscii string
+	CarAscii   string
+	RouteAscii string
+}
+
+func createEmptyString() string {
+	height := 4
+	width := 13
+
+	var emptyString strings.Builder
+	for i := 0; i < height; i++ {
+		for j := 0; j < width; j++ {
+			emptyString.WriteByte(' ')
+
+		}
+		emptyString.WriteByte('\n')
+	}
+
+	return emptyString.String()
+}
+
+func createSquare() string {
+	height := 4
+	width := 13
+	var square strings.Builder
+	square.WriteByte('\n')
+
+	for i := 0; i < height; i++ {
+		for j := 0; j < width; j++ {
+			square.WriteByte('X')
+		}
+		if i != height-1 {
+			square.WriteByte('\n')
+		}
+
+	}
+
+	return square.String()
+}
+
+var Settings = DisplaySettings{
+	GridSize:   24,
+	FontSize:   6,
+	EmptyAscii: createEmptyString(),
+	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
+	RouteAscii: createSquare(),
 }
 
 func CalculatePath(start, end Coordinate) []Coordinate {
