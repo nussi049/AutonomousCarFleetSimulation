@@ -176,8 +176,7 @@ func (c *Car) periodicCarInfoUpdate() {
 
 func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteResponse, error) {
 	route := convertFromProtoCoordinates(req.Route)
-	fmt.Println(convertFromProtoCoordinates(req.Route))
-	fmt.Println(req.Route)
+	fmt.Println("Received route:", route)
 	c.mu.Lock()
 	c.Car.Route = route
 	c.Car.ActiveRoute = true
@@ -187,28 +186,36 @@ func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteR
 }
 
 func (c *Car) driveRoute() {
-	for len(c.Car.Route) > 0 {
-		// Calculate the path to the next coordinate in the route
-		toRouteDrive := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
+	// First, drive to the start of the route
+	toRouteStart := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
+	fmt.Println("Path to route start:", toRouteStart)
 
-		// Drive each coordinate in the calculated path
+	for _, coord := range toRouteStart {
+		c.mu.Lock()
+		c.Car.Position = coord
+		fmt.Printf("Driving to route start: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.mu.Unlock()
+		c.sendCarInfo()
+		time.Sleep(1 * time.Second)
+	}
+
+	// Then, drive the actual route
+	for len(c.Car.Route) > 0 {
+		toRouteDrive := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
+		fmt.Println("Driving along the route:", toRouteDrive)
 		for _, coord := range toRouteDrive {
 			c.mu.Lock()
 			c.Car.Position = coord
-			fmt.Printf("Driving to intermediate position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+			fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
 			c.mu.Unlock()
-			c.sendCarInfo()             // Send updated position to the coordinator
-			time.Sleep(1 * time.Second) // Simulate driving time
+			c.sendCarInfo()
+			time.Sleep(1 * time.Second)
 		}
 
-		// Update the current position to the first element of the route
+		// Remove the first element from the route
 		c.mu.Lock()
-		c.Car.Position = c.Car.Route[0]
-		c.Car.Route = c.Car.Route[1:] // Remove the first element from the route
-		fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.Car.Route = c.Car.Route[1:]
 		c.mu.Unlock()
-		c.sendCarInfo()             // Send updated position to the coordinator
-		time.Sleep(1 * time.Second) // Simulate driving time
 	}
 	fmt.Println("Route completed. Switching to random drive after 5 seconds.")
 	time.Sleep(5 * time.Second) // Stay at the final position for 5 seconds
