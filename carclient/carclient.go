@@ -218,7 +218,7 @@ func convertFromProtoCoordinates(coords []*api.Coordinate) []utils.Coordinate {
 }
 
 type CarClientServiceServer struct {
-	api.CarClientServiceServer
+	api.UnimplementedCarClientServiceServer
 	car *Car
 }
 
@@ -256,21 +256,6 @@ func StartClient() {
 
 	// Start the car client gRPC server
 	go startCarClientServer(car)
-
-	// Example route for testing
-	route := []utils.Coordinate{
-		{X: 3, Y: 4},
-		{X: 3, Y: 5},
-		{X: 4, Y: 5},
-		{X: 5, Y: 5},
-		{X: 5, Y: 6},
-	}
-
-	// Manually set the route for testing
-	car.mu.Lock()
-	car.Car.Route = route
-	car.Car.ActiveRoute = true
-	car.mu.Unlock()
 
 	select {} // Block forever
 }
