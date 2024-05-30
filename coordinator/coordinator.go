@@ -16,6 +16,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 	"google.golang.org/grpc"
 )
@@ -31,6 +32,7 @@ var gridData = make([][]string, 8)
 
 type DisplaySettings struct {
 	GridSize   int
+	FontSize   int
 	EmptyAscii string
 	CarAscii   string
 	RouteAscii string
@@ -73,6 +75,7 @@ func createSquare() string {
 
 var settings = DisplaySettings{
 	GridSize:   8,
+	FontSize:   6,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
@@ -312,7 +315,9 @@ func drawRow(gtx layout.Context, th *material.Theme, data []string) layout.Dimen
 	for _, cell := range data {
 		cell := cell
 		widgets = append(widgets, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return material.Body1(th, cell).Layout(gtx)
+			label := material.Body1(th, cell)
+			label.TextSize = unit.Sp(settings.FontSize)
+			return label.Layout(gtx)
 		}))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, widgets...)
