@@ -57,6 +57,7 @@ func createSquare() string {
 	width := 13
 	var square strings.Builder
 	square.WriteByte('\n')
+
 	for i := 0; i < height; i++ {
 		for j := 0; j < width; j++ {
 			square.WriteByte('X')
@@ -129,24 +130,43 @@ func startServer() {
 
 func calculatePath(start, end utils.Coordinate) []utils.Coordinate {
 	var path []utils.Coordinate
+	current := start
 
-	// Bewegungen in X-Richtung
-	for x := start.X; x != end.X; {
-		path = append(path, utils.Coordinate{X: x, Y: start.Y})
-		if x < end.X {
-			x++
-		} else {
-			x--
-		}
-	}
+	// Solange wir nicht am Ziel sind
+	for current != end {
+		path = append(path, current)
 
-	// Bewegungen in Y-Richtung
-	for y := start.Y; y != end.Y; {
-		path = append(path, utils.Coordinate{X: end.X, Y: y})
-		if y < end.Y {
-			y++
-		} else {
-			y--
+		// Zufällige Entscheidung, ob in X- oder Y-Richtung bewegt wird, sofern beide Richtungen möglich sind
+		if current.X != end.X && current.Y != end.Y {
+			if rand.Intn(2) == 0 {
+				// Bewegung in X-Richtung
+				if current.X < end.X {
+					current.X++
+				} else {
+					current.X--
+				}
+			} else {
+				// Bewegung in Y-Richtung
+				if current.Y < end.Y {
+					current.Y++
+				} else {
+					current.Y--
+				}
+			}
+		} else if current.X != end.X {
+			// Nur Bewegung in X-Richtung möglich
+			if current.X < end.X {
+				current.X++
+			} else {
+				current.X--
+			}
+		} else if current.Y != end.Y {
+			// Nur Bewegung in Y-Richtung möglich
+			if current.Y < end.Y {
+				current.Y++
+			} else {
+				current.Y--
+			}
 		}
 	}
 
@@ -167,6 +187,17 @@ func generateRandomRoute() {
 	}
 }
 
+func convertRoute(coords []utils.Coordinate) []*api.Coordinate {
+	apiCoords := make([]*api.Coordinate, len(coords))
+	for i, coord := range coords {
+		apiCoords[i] = &api.Coordinate{
+			X: coord.X,
+			Y: coord.Y,
+		}
+	}
+	return apiCoords
+}
+
 func sendRoute(carinfo utils.CarInfo) {
 	// Set up a connection to the gRPC server.
 	conn, err := grpc.Dial(carinfo.Identifier, grpc.WithInsecure())
@@ -180,7 +211,7 @@ func sendRoute(carinfo utils.CarInfo) {
 
 	// Create a car info request.
 	request := &api.RouteRequest{
-		Route: []*api.Coordinate{},
+		Route: convertRoute(carinfo.Route),
 	}
 
 	// Send the car info request to the server.
