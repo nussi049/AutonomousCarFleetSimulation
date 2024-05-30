@@ -176,6 +176,8 @@ func (c *Car) periodicCarInfoUpdate() {
 
 func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteResponse, error) {
 	route := convertFromProtoCoordinates(req.Route)
+	fmt.Println(convertFromProtoCoordinates(req.Route))
+	fmt.Println(req.Route)
 	c.mu.Lock()
 	c.Car.Route = route
 	c.Car.ActiveRoute = true
@@ -186,9 +188,23 @@ func (c *Car) SendRoute(ctx context.Context, req *api.RouteRequest) (*api.RouteR
 
 func (c *Car) driveRoute() {
 	for len(c.Car.Route) > 0 {
+		// Calculate the path to the next coordinate in the route
+		toRouteDrive := utils.CalculatePath(c.Car.Position, c.Car.Route[0])
+
+		// Drive each coordinate in the calculated path
+		for _, coord := range toRouteDrive {
+			c.mu.Lock()
+			c.Car.Position = coord
+			fmt.Printf("Driving to intermediate position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+			c.mu.Unlock()
+			c.sendCarInfo()             // Send updated position to the coordinator
+			time.Sleep(1 * time.Second) // Simulate driving time
+		}
+
+		// Update the current position to the first element of the route
 		c.mu.Lock()
-		c.Car.Position = c.Car.Route[0] // Update the current position to the first element
-		c.Car.Route = c.Car.Route[1:]   // Remove the first element from the route
+		c.Car.Position = c.Car.Route[0]
+		c.Car.Route = c.Car.Route[1:] // Remove the first element from the route
 		fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
 		c.mu.Unlock()
 		c.sendCarInfo()             // Send updated position to the coordinator
