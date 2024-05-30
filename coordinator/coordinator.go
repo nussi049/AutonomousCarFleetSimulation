@@ -198,7 +198,7 @@ func convertRoute(coords []utils.Coordinate) []*api.Coordinate {
 	return apiCoords
 }
 
-func sendRoute(carinfo utils.CarInfo) {
+func sendRoute(carinfo utils.CarInfo, route []utils.Coordinate) {
 	// Set up a connection to the gRPC server.
 	conn, err := grpc.Dial(carinfo.Identifier, grpc.WithInsecure())
 	if err != nil {
@@ -211,7 +211,7 @@ func sendRoute(carinfo utils.CarInfo) {
 
 	// Create a car info request.
 	request := &api.RouteRequest{
-		Route: convertRoute(carinfo.Route),
+		Route: convertRoute(route),
 	}
 
 	// Send the car info request to the server.
@@ -265,7 +265,7 @@ func display(window *app.Window) error {
 				window.Invalidate()
 			case route := <-routeCh:
 				updateGridDataRoute(route)
-				sendRoute(carinfo[0]) //TODO calculate which car has shortestPath to starting point of route
+				sendRoute(carinfo[0], route) //TODO calculate which car has shortestPath to starting point of route
 				window.Invalidate()
 			}
 		}
