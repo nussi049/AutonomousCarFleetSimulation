@@ -93,7 +93,7 @@ func (s *CoordinatorServiceServer) SendCarInfo(req *api.CarInfoRequest, srv api.
 
 	// Send CarInfo to the channel
 	carInfoCh <- carInfo
-	log.Println("Successfully sent CarInfo to channel")
+	log.Printf("Car info received successfully from: %v", carInfo.Identifier)
 
 	// Return success message
 	return srv.Send(&api.CarInfoResponse{
@@ -217,7 +217,7 @@ func display(window *app.Window) error {
 				window.Invalidate()
 			case route := <-routeCh:
 				updateGridDataRoute(route)
-				sendRoute(carinfo[0], route) //TODO calculate which car has shortestPath to starting point of route
+				sendRoute(findCarWithShortestPath(carinfo, route), route)
 				window.Invalidate()
 			}
 		}
@@ -235,6 +235,27 @@ func display(window *app.Window) error {
 			e.Frame(gtx.Ops)
 		}
 	}
+}
+
+// findCarWithShortestPath findet das Auto mit dem kürzesten Pfad zum Startpunkt der Route
+func findCarWithShortestPath(carInfos []utils.CarInfo, route []utils.Coordinate) utils.CarInfo {
+	if len(route) == 0 {
+		return utils.CarInfo{}
+	}
+	startPoint := route[0]
+	var shortestCar utils.CarInfo
+	shortestLength := int(^uint(0) >> 1) // Maximum int value
+
+	for _, carInfo := range carInfos {
+		path := utils.CalculatePath(carInfo.Position, startPoint)
+		if len(path) < shortestLength {
+			shortestLength = len(path)
+			shortestCar = carInfo
+		}
+	}
+	log.Printf("Shortest Path to route: %v", shortestCar.Identifier)
+
+	return shortestCar
 }
 
 func updateCarinfo(newCarInfo utils.CarInfo) utils.CarInfo {
