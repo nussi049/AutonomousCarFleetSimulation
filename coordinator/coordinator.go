@@ -243,7 +243,7 @@ func updateGridData(oldCarInfo utils.CarInfo, newCarInfo utils.CarInfo) {
 
 func updateGridDataRoute(route []utils.Coordinate) {
 	for _, coord := range route {
-		gridData[coord.Y][coord.X] = utils.Settings.RouteAscii
+		gridData[coord.X][coord.Y] = utils.Settings.RouteAscii
 	}
 }
 
