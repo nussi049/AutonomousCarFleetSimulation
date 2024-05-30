@@ -27,7 +27,7 @@ var (
 	routeCh      = make(chan []utils.Coordinate)
 )
 
-var gridData = make([][]string, 8)
+var gridData = make([][]string, utils.Settings.GridSize)
 
 type CoordinatorServiceServer struct {
 	api.CoordinatorServiceServer
