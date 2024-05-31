@@ -1,20 +1,11 @@
 package utils
 
 import (
+	"AutonomousCarFleetSimulation/api"
+	"math"
 	"math/rand"
 	"strings"
 )
-
-type Coordinate struct {
-	X, Y int32
-}
-
-type CarInfo struct {
-	Identifier  string
-	Position    Coordinate
-	Route       []Coordinate
-	ActiveRoute bool
-}
 
 type DisplaySettings struct {
 	GridSize   int
@@ -60,57 +51,87 @@ func createSquare() string {
 }
 
 var Settings = DisplaySettings{
-	GridSize:   18,
+	GridSize:   12,
 	FontSize:   10,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
 }
 
-func CalculatePath(start, end Coordinate) []Coordinate {
-	var path []Coordinate
-	current := start
+func Distance(start *api.Coordinate, end *api.Coordinate) float64 {
+	return math.Abs(float64(start.X)-float64(end.X)) + math.Abs(float64(start.Y)-float64(end.Y))
+}
 
-	// Solange wir nicht am Ziel sind
-	for current != end {
-		path = append(path, current)
+func CalculatePath(start *api.Coordinate, end *api.Coordinate) []*api.Coordinate {
+	var path []*api.Coordinate
+	current := &api.Coordinate{
+		X: start.X,
+		Y: start.Y,
+	}
 
-		// Zufällige Entscheidung, ob in X- oder Y-Richtung bewegt wird, sofern beide Richtungen möglich sind
-		if current.X != end.X && current.Y != end.Y {
-			if rand.Intn(2) == 0 {
-				// Bewegung in X-Richtung
-				if current.X < end.X {
-					current.X++
-				} else {
-					current.X--
-				}
-			} else {
-				// Bewegung in Y-Richtung
-				if current.Y < end.Y {
-					current.Y++
-				} else {
-					current.Y--
-				}
-			}
-		} else if current.X != end.X {
-			// Nur Bewegung in X-Richtung möglich
+	// Entscheide zufällig, ob zuerst horizontal oder vertikal bewegt werden soll
+	moveHorizontalFirst := true
+	if start.X != end.X && start.Y != end.Y {
+		moveHorizontalFirst = rand.Intn(2) == 0
+	}
+
+	// Bewege zuerst horizontal, dann vertikal
+	if moveHorizontalFirst {
+		for current.X != end.X {
 			if current.X < end.X {
 				current.X++
 			} else {
 				current.X--
 			}
-		} else if current.Y != end.Y {
-			// Nur Bewegung in Y-Richtung möglich
+			path = append(path, &api.Coordinate{
+				X: current.X,
+				Y: current.Y,
+			})
+		}
+
+		for current.Y != end.Y {
 			if current.Y < end.Y {
 				current.Y++
 			} else {
 				current.Y--
 			}
+			path = append(path, &api.Coordinate{
+				X: current.X,
+				Y: current.Y,
+			})
+		}
+	} else {
+		// Bewege zuerst vertikal, dann horizontal
+		for current.Y != end.Y {
+			if current.Y < end.Y {
+				current.Y++
+			} else {
+				current.Y--
+			}
+			path = append(path, &api.Coordinate{
+				X: current.X,
+				Y: current.Y,
+			})
+		}
+
+		for current.X != end.X {
+			if current.X < end.X {
+				current.X++
+			} else {
+				current.X--
+			}
+			path = append(path, &api.Coordinate{
+				X: current.X,
+				Y: current.Y,
+			})
 		}
 	}
 
 	// Füge die Endkoordinate hinzu
-	path = append(path, end)
+	path = append(path, &api.Coordinate{
+		X: end.X,
+		Y: end.Y,
+	})
 
 	return path
 }
