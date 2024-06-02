@@ -1,7 +1,5 @@
 # AutonomousCarFleetSimulation
 
-![AutonomousCarFleetSimulation](https://github.com/nussi049/AutonomousCarFleetSimulation/assets/44850096/dab96da6-1377-456f-af15-a0d762bd2058)
-
 This project simulates a fleet of autonomous cars navigating within a grid. Each car follows randomly generated routes, received via gRPC from a central coordinator, and updates its position in real-time on a graphical interface. The project was developed as a university assignment to demonstrate the application of gRPC, concurrency in Go, and GUI development.
 
 ## Features
