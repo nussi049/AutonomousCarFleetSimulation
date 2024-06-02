@@ -45,7 +45,7 @@ This project simulates a fleet of autonomous cars navigating within a grid. Each
     ```
 5. **Run the Car Clients**: Open multiple terminal windows and run the following command in each:
     ```sh
-    go run carclient/main.go --port=<PORT> --color=<COLOR>
+    go run carclient/main.go -port=<PORT> -color=<COLOR>
     ```
 
 ## Run Simulation
