@@ -181,7 +181,7 @@ func (c *Car) driveRoute() {
 	}
 
 	// Drive to the first position in the route
-	toRouteStart := utils.CalculatePath(c.Car.Position, c.Car.Route.Coordinates[0])
+	toRouteStart := utils.CalculatePath(c.Car.Position, c.Car.Route.Coordinates[0], c.Car.Route)
 	fmt.Println("Path to route start:", toRouteStart)
 
 	for _, coord := range toRouteStart {
@@ -194,17 +194,17 @@ func (c *Car) driveRoute() {
 	}
 
 	// Drive the remaining route
-	for i := 1; i < len(c.Car.Route.Coordinates); i++ {
-		toNext := utils.CalculatePath(c.Car.Position, c.Car.Route.Coordinates[i])
-		for _, coord := range toNext {
-			c.mu.Lock()
-			c.Car.Position = coord
-			fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
-			c.mu.Unlock()
-			c.sendCarInfo()
-			time.Sleep(1 * time.Second)
-		}
+	//for i := 1; i < len(c.Car.Route.Coordinates); i++ {
+	//	toNext := utils.CalculatePath(c.Car.Position, c.Car.Route.Coordinates[i])
+	for _, coord := range c.Car.Route.Coordinates {
+		c.mu.Lock()
+		c.Car.Position = coord
+		fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.mu.Unlock()
+		c.sendCarInfo()
+		time.Sleep(1 * time.Second)
 	}
+	//}
 
 	fmt.Println("Route completed. Checking for new route or switching to random drive after 1 seconds.")
 	time.Sleep(1 * time.Second)
@@ -240,11 +240,14 @@ func startCarClientServer(car *Car, port string) {
 }
 
 func StartClient() {
-	startPos := &api.Coordinate{X: 3, Y: 3}
 	port := flag.Int("port", 50000, "Port for the server to listen on")
 	color := flag.String("color", "", "Color of car")
-
+	x := flag.Int("x", 3, "X Coordinate to start")
+	y := flag.Int("y", 3, "Y Coordinate to start")
 	flag.Parse()
+
+	startPos := &api.Coordinate{X: int32(*x), Y: int32(*y)}
+
 	println(fmt.Sprintf("localhost:%d", *port))
 	car := newCar(fmt.Sprintf("localhost:%d", *port), startPos, *color)
 	if car == nil {

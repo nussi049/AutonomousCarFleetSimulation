@@ -2,17 +2,19 @@ package utils
 
 import (
 	"AutonomousCarFleetSimulation/api"
+	"container/list"
+	"fmt"
 	"math"
-	"math/rand"
 	"strings"
 )
 
 type DisplaySettings struct {
-	GridSize   int
-	FontSize   int
-	EmptyAscii string
-	CarAscii   string
-	RouteAscii string
+	GridSize         int
+	FontSize         int
+	EmptyAscii       string
+	CarAscii         string
+	RouteAscii       string
+	CarAndRouteAscii string
 }
 
 func createEmptyString() string {
@@ -51,11 +53,15 @@ func createSquare() string {
 }
 
 var Settings = DisplaySettings{
-	GridSize:   12,
-	FontSize:   10,
+	GridSize:   18,
+	FontSize:   8,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
 	RouteAscii: createSquare(),
+	CarAndRouteAscii: `X X  XX
+	X|_||X\.__
+	(XXX_XX_X_\
+	=` + "`" + `-(_)--(_)-'`,
 }
 
 // CreateDataGrid erstellt ein zweidimensionales Array von Strings
@@ -76,76 +82,75 @@ func Distance(start *api.Coordinate, end *api.Coordinate) float64 {
 	return math.Abs(float64(start.X)-float64(end.X)) + math.Abs(float64(start.Y)-float64(end.Y))
 }
 
-func CalculatePath(start *api.Coordinate, end *api.Coordinate) []*api.Coordinate {
-	var path []*api.Coordinate
-	current := &api.Coordinate{
-		X: start.X,
-		Y: start.Y,
-	}
+// Struktur zur Speicherung eines Schritts im Pfad
+type Step struct {
+	Coord *api.Coordinate
+	Path  []*api.Coordinate
+}
 
-	// Entscheide zufällig, ob zuerst horizontal oder vertikal bewegt werden soll
-	moveHorizontalFirst := true
-	if start.X != end.X && start.Y != end.Y {
-		moveHorizontalFirst = rand.Intn(2) == 0
-	}
-
-	// Bewege zuerst horizontal, dann vertikal
-	if moveHorizontalFirst {
-		for current.X != end.X {
-			if current.X < end.X {
-				current.X++
-			} else {
-				current.X--
-			}
-			path = append(path, &api.Coordinate{
-				X: current.X,
-				Y: current.Y,
-			})
-		}
-
-		for current.Y != end.Y {
-			if current.Y < end.Y {
-				current.Y++
-			} else {
-				current.Y--
-			}
-			path = append(path, &api.Coordinate{
-				X: current.X,
-				Y: current.Y,
-			})
-		}
-	} else {
-		// Bewege zuerst vertikal, dann horizontal
-		for current.Y != end.Y {
-			if current.Y < end.Y {
-				current.Y++
-			} else {
-				current.Y--
-			}
-			path = append(path, &api.Coordinate{
-				X: current.X,
-				Y: current.Y,
-			})
-		}
-
-		for current.X != end.X {
-			if current.X < end.X {
-				current.X++
-			} else {
-				current.X--
-			}
-			path = append(path, &api.Coordinate{
-				X: current.X,
-				Y: current.Y,
-			})
+// Funktion zur Berechnung des Pfads von start nach end unter Vermeidung der avoidRoute
+func CalculatePath(start *api.Coordinate, end *api.Coordinate, avoidRoute *api.Route) []*api.Coordinate {
+	// Set zur schnellen Überprüfung der avoidRoute-Koordinaten
+	avoidSet := make(map[string]bool)
+	if avoidRoute != nil {
+		for _, coord := range avoidRoute.Coordinates {
+			key := fmt.Sprintf("%d,%d", coord.X, coord.Y)
+			avoidSet[key] = true
 		}
 	}
 
-	// Füge die Endkoordinate hinzu
-	path = append(path, &api.Coordinate{
-		X: end.X,
-		Y: end.Y,
-	})
+	// BFS-Initialisierung
+	queue := list.New()
+	startStep := Step{Coord: start, Path: []*api.Coordinate{start}}
+	queue.PushBack(startStep)
+	visited := make(map[string]bool)
+	visited[fmt.Sprintf("%d,%d", start.X, start.Y)] = true
 
-	return path
+	// BFS-Schleife
+	for queue.Len() > 0 {
+		element := queue.Front()
+		step := element.Value.(Step)
+		queue.Remove(element)
+
+		current := step.Coord
+		path := step.Path
+
+		// Ziel erreicht
+		if current.X == end.X && current.Y == end.Y {
+			return path
+		}
+
+		// Bewegung in vier Richtungen
+		directions := []struct {
+			dx, dy int32
+		}{
+			{dx: 1, dy: 0},
+			{dx: -1, dy: 0},
+			{dx: 0, dy: 1},
+			{dx: 0, dy: -1},
+		}
+
+		for _, dir := range directions {
+			newX, newY := current.X+dir.dx, current.Y+dir.dy
+			newCoord := &api.Coordinate{X: newX, Y: newY}
+			key := fmt.Sprintf("%d,%d", newX, newY)
+
+			// Überprüfen, ob die neue Koordinate in der avoidRoute liegt oder bereits besucht wurde
+			if (newX != end.X || newY != end.Y) && avoidSet[key] {
+				continue
+			}
+			if visited[key] {
+				continue
+			}
+
+			// Neue Koordinate zum Pfad hinzufügen und in die Warteschlange einfügen
+			newPath := append([]*api.Coordinate{}, path...)
+			newPath = append(newPath, newCoord)
+			queue.PushBack(Step{Coord: newCoord, Path: newPath})
+			visited[key] = true
+		}
+	}
+
+	// Kein Pfad gefunden
+	return nil
 }

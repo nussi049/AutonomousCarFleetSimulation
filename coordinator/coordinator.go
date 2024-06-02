@@ -67,10 +67,10 @@ func startServer() {
 
 func generateRandomRoute() {
 	for {
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 		start := &api.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
 		end := &api.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
-		route := utils.CalculatePath(start, end)
+		route := utils.CalculatePath(start, end, nil)
 		routeCh <- &api.Route{Coordinates: route}
 		log.Printf("Generated Random Route from %v to %v and path %v", start, end, route)
 	}
@@ -217,12 +217,40 @@ func updateGridData(oldCarInfo *api.CarInfo, newCarInfo *api.CarInfo) {
 	carinfoMutex.Lock()
 	defer carinfoMutex.Unlock()
 
-	if oldCarInfo != nil {
+	if oldCarInfo != nil && gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][0] == utils.Settings.CarAscii {
 		// Delete old position of car
 		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.EmptyAscii, ""}
 	}
-	// set new position of car
-	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
+
+	// If new field empty: Set CarAscii
+	if gridData[newCarInfo.Position.X][newCarInfo.Position.Y][0] == utils.Settings.EmptyAscii {
+		gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
+	}
+	// If new field route
+	if gridData[newCarInfo.Position.X][newCarInfo.Position.Y][0] == utils.Settings.RouteAscii {
+		var isRoute bool = false
+		for _, coord := range newCarInfo.Route.Coordinates {
+			if coord.X == newCarInfo.Position.X && coord.Y == newCarInfo.Position.Y {
+				isRoute = true
+				break
+			}
+		}
+		// if field is coord of own route: Set CarAscii
+		if isRoute {
+			gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
+			if oldCarInfo != nil {
+				gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.EmptyAscii, ""}
+			}
+		} else {
+			// if field is not coord in own route: Set CarAndRouteAscii with color of old value
+			gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAndRouteAscii, gridData[newCarInfo.Position.X][newCarInfo.Position.Y][1]}
+		}
+	}
+	// If CarAndRouteAscii is set: Set old position to Route Ascii with old color and new position to new CarAscii
+	if oldCarInfo != nil && gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][0] == utils.Settings.CarAndRouteAscii {
+		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.RouteAscii, gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][1]}
+	}
+
 }
 
 func updateGridDataRoute(route *api.Route, color string) {
@@ -261,14 +289,21 @@ func drawRow(gtx layout.Context, th *material.Theme, data [][2]string) layout.Di
 				col = color.NRGBA{R: 0, G: 255, B: 0, A: 255} // Grün
 			case "Blau":
 				col = color.NRGBA{R: 0, G: 0, B: 255, A: 255} // Blau
-			case "Gelb":
-				col = color.NRGBA{R: 255, G: 255, B: 0, A: 255} // Gelb
 			case "Cyan":
 				col = color.NRGBA{R: 0, G: 255, B: 255, A: 255} // Cyan
+			case "Magenta":
+				col = color.NRGBA{R: 255, G: 0, B: 255, A: 255} // Magenta
+			case "Orange":
+				col = color.NRGBA{R: 255, G: 165, B: 0, A: 255} // Orange
+			case "Pink":
+				col = color.NRGBA{R: 255, G: 192, B: 203, A: 255} // Pink
+			case "Lila":
+				col = color.NRGBA{R: 128, G: 0, B: 128, A: 255} // Lila
+			case "Braun":
+				col = color.NRGBA{R: 165, G: 42, B: 42, A: 255} // Braun
 			default:
 				col = color.NRGBA{R: 0, G: 0, B: 0, A: 255} // Schwarz
 			}
-
 			label.Color = col
 
 			return label.Layout(gtx)
