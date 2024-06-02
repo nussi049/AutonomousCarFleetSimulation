@@ -4,6 +4,7 @@ import (
 	"AutonomousCarFleetSimulation/api"
 	"AutonomousCarFleetSimulation/utils"
 	"context"
+	"image/color"
 	"math"
 	"math/rand"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"os"
 
 	"gioui.org/app"
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -26,9 +28,8 @@ var (
 	carinfoMutex sync.Mutex
 	carInfoCh    = make(chan *api.CarInfo)
 	routeCh      = make(chan *api.Route)
+	gridData     = utils.CreateDataGrid()
 )
-
-var gridData = make([][]string, utils.Settings.GridSize)
 
 type CoordinatorServiceServer struct {
 	api.CoordinatorServiceServer
@@ -98,14 +99,6 @@ func Run() {
 
 	go startServer()
 
-	// Create empty datagrid
-	for i := range gridData {
-		gridData[i] = make([]string, utils.Settings.GridSize)
-		for j := range gridData[i] {
-			gridData[i][j] = utils.Settings.EmptyAscii
-		}
-	}
-
 	go generateRandomRoute()
 
 	go func() {
@@ -134,9 +127,10 @@ func display(window *app.Window) error {
 			case carInfo := <-carInfoCh:
 				var oldCarInfo = updateCarinfo(carInfo)
 				updateGridData(oldCarInfo, carInfo)
+				updateCarinfo(carInfo)
 				window.Invalidate()
 			case route := <-routeCh:
-				updateGridDataRoute(route)
+				updateGridDataRoute(route, "")
 				go sendRouteWhenFree(carinfos, route)
 				window.Invalidate()
 			}
@@ -186,6 +180,7 @@ func findCarWithShortestPath(carInfos []*api.CarInfo, route *api.Route) *api.Car
 		if shortestCar != nil {
 			shortestCar.ActiveRoute = true
 			shortestCar.Route = route
+			updateGridDataRoute(route, shortestCar.Color)
 			carinfoMutex.Unlock()
 			log.Printf("Shortest Path to route: %v", shortestCar.Identifier)
 			return shortestCar
@@ -224,15 +219,15 @@ func updateGridData(oldCarInfo *api.CarInfo, newCarInfo *api.CarInfo) {
 
 	if oldCarInfo != nil {
 		// Delete old position of car
-		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = utils.Settings.EmptyAscii
+		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.EmptyAscii, ""}
 	}
 	// set new position of car
-	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = utils.Settings.CarAscii
+	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
 }
 
-func updateGridDataRoute(route *api.Route) {
+func updateGridDataRoute(route *api.Route, color string) {
 	for _, coord := range route.Coordinates {
-		gridData[coord.X][coord.Y] = utils.Settings.RouteAscii
+		gridData[coord.X][coord.Y] = [2]string{utils.Settings.RouteAscii, color}
 	}
 }
 
@@ -247,13 +242,35 @@ func drawGrid(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-func drawRow(gtx layout.Context, th *material.Theme, data []string) layout.Dimensions {
+func drawRow(gtx layout.Context, th *material.Theme, data [][2]string) layout.Dimensions {
 	var widgets []layout.FlexChild
 	for _, cell := range data {
-		cell := cell
+		cellContent := cell[0]
+		cellColor := cell[1]
+
 		widgets = append(widgets, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			label := material.Body1(th, cell)
+			label := material.Body1(th, cellContent)
 			label.TextSize = unit.Sp(utils.Settings.FontSize)
+			label.Font.Weight = font.Bold
+
+			var col color.NRGBA
+			switch cellColor {
+			case "Rot":
+				col = color.NRGBA{R: 255, G: 0, B: 0, A: 255} // Rot
+			case "Grün":
+				col = color.NRGBA{R: 0, G: 255, B: 0, A: 255} // Grün
+			case "Blau":
+				col = color.NRGBA{R: 0, G: 0, B: 255, A: 255} // Blau
+			case "Gelb":
+				col = color.NRGBA{R: 255, G: 255, B: 0, A: 255} // Gelb
+			case "Cyan":
+				col = color.NRGBA{R: 0, G: 255, B: 255, A: 255} // Cyan
+			default:
+				col = color.NRGBA{R: 0, G: 0, B: 0, A: 255} // Schwarz
+			}
+
+			label.Color = col
+
 			return label.Layout(gtx)
 		}))
 	}

@@ -29,7 +29,7 @@ type Car struct {
 	mu          sync.Mutex
 }
 
-func newCar(identifier string, startPos *api.Coordinate) *Car {
+func newCar(identifier string, startPos *api.Coordinate, color string) *Car {
 	// Establish a connection to the car client service via gRPC
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -45,6 +45,7 @@ func newCar(identifier string, startPos *api.Coordinate) *Car {
 			Position:    startPos,
 			Route:       &api.Route{Coordinates: []*api.Coordinate{}}, // Empty route to start with
 			ActiveRoute: false,
+			Color:       color,
 		},
 		Conn:        conn,
 		Client:      client,
@@ -140,20 +141,12 @@ func (c *Car) oppositeDirection() int {
 func (c *Car) sendCarInfo() {
 	// Create and send a CarInfo request
 	c.mu.Lock()
-	req := &api.CarInfo{
-		Identifier:  c.Car.Identifier,
-		Position:    c.Car.Position,
-		Route:       c.Car.Route,
-		ActiveRoute: c.Car.ActiveRoute,
-	}
-
-	c.mu.Unlock()
-
-	resp, err := c.Client.SendCarInfo(context.Background(), req)
+	resp, err := c.Client.SendCarInfo(context.Background(), c.Car)
 	if err != nil {
 		fmt.Println("Error sending car info:", err)
 		return
 	}
+	c.mu.Unlock()
 
 	fmt.Println("Response from server:", resp.Message)
 }
@@ -213,13 +206,12 @@ func (c *Car) driveRoute() {
 		}
 	}
 
-	fmt.Println("Route completed. Checking for new route or switching to random drive after 5 seconds.")
+	fmt.Println("Route completed. Checking for new route or switching to random drive after 1 seconds.")
 	time.Sleep(1 * time.Second)
 	c.mu.Lock()
-	if len(c.Car.Route.Coordinates) == 0 {
-		c.Car.ActiveRoute = false // Route is completed, switch to random drive if no new route
-		fmt.Printf("Set Active Route to false")
-	}
+	c.Car.ActiveRoute = false // Route is completed, switch to random drive if no new route
+	fmt.Printf("Set Active Route to false")
+
 	c.mu.Unlock()
 }
 
@@ -250,9 +242,11 @@ func startCarClientServer(car *Car, port string) {
 func StartClient() {
 	startPos := &api.Coordinate{X: 3, Y: 3}
 	port := flag.Int("port", 50000, "Port for the server to listen on")
+	color := flag.String("color", "", "Color of car")
+
 	flag.Parse()
 	println(fmt.Sprintf("localhost:%d", *port))
-	car := newCar(fmt.Sprintf("localhost:%d", *port), startPos)
+	car := newCar(fmt.Sprintf("localhost:%d", *port), startPos, *color)
 	if car == nil {
 		fmt.Println("Failed to create car client")
 		return

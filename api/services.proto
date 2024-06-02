@@ -19,6 +19,7 @@ message CarInfo {
   Coordinate position = 2;
   Route route = 3;
   bool active_route = 4;
+  string color = 5;
 }
 
 message CarInfoResponse {

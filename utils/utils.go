@@ -58,6 +58,20 @@ var Settings = DisplaySettings{
 	RouteAscii: createSquare(),
 }
 
+// CreateDataGrid erstellt ein zweidimensionales Array von Strings
+func CreateDataGrid() [][][2]string {
+	gridData := make([][][2]string, Settings.GridSize)
+
+	// Create empty datagrid
+	for i := range gridData {
+		gridData[i] = make([][2]string, Settings.GridSize)
+		for j := range gridData[i] {
+			gridData[i][j] = [2]string{Settings.EmptyAscii, "E"} // Standardfarbe 'E'
+		}
+	}
+	return gridData
+}
+
 func Distance(start *api.Coordinate, end *api.Coordinate) float64 {
 	return math.Abs(float64(start.X)-float64(end.X)) + math.Abs(float64(start.Y)-float64(end.Y))
 }
