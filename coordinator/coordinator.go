@@ -4,22 +4,14 @@ import (
 	"AutonomousCarFleetSimulation/api"
 	"AutonomousCarFleetSimulation/utils"
 	"context"
-	"image/color"
 	"math"
 	"math/rand"
-	"net"
 	"sync"
 	"time"
 
 	"log"
-	"os"
 
 	"gioui.org/app"
-	"gioui.org/font"
-	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/unit"
-	"gioui.org/widget/material"
 	"google.golang.org/grpc"
 )
 
@@ -30,40 +22,6 @@ var (
 	routeCh      = make(chan *api.Route)
 	gridData     = utils.CreateDataGrid()
 )
-
-type CoordinatorServiceServer struct {
-	api.CoordinatorServiceServer
-}
-
-func (s *CoordinatorServiceServer) SendCarInfo(ctx context.Context, req *api.CarInfo) (*api.CarInfoResponse, error) {
-	// Send CarInfo to the channel
-	carInfoCh <- req
-	log.Printf("Car info received successfully from: %v", req.Identifier)
-
-	// Return success message
-	return &api.CarInfoResponse{
-		Message: "Car info received successfully",
-	}, nil
-}
-
-func startServer() {
-	// Create a gRPC server
-	server := grpc.NewServer()
-
-	// Register your server implementation
-	coordinatorServer := &CoordinatorServiceServer{}
-	api.RegisterCoordinatorServiceServer(server, coordinatorServer)
-
-	// Start the server on a specific port
-	listener, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
-	log.Println("Server started")
-	if err := server.Serve(listener); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
-	}
-}
 
 func generateRandomRoute() {
 	for {
@@ -95,58 +53,18 @@ func sendRoute(carinfo *api.CarInfo, route *api.Route) {
 	log.Printf("Response from server: %s", response.Message)
 }
 
-func Run() {
-
-	go startServer()
-
-	go generateRandomRoute()
-
-	go func() {
-		window := new(app.Window)
-		err := display(window)
-		if err != nil {
-			log.Fatal(err)
-		}
-		os.Exit(0)
-	}()
-	app.Main()
-
-}
-
-func display(window *app.Window) error {
-	window.Option(app.Size(2500, 2500))
-
-	theme := material.NewTheme()
-
-	theme.Face = "monospace"
-
-	var ops op.Ops
-	go func() {
-		for {
-			select {
-			case carInfo := <-carInfoCh:
-				var oldCarInfo = updateCarinfo(carInfo)
-				updateGridData(oldCarInfo, carInfo)
-				updateCarinfo(carInfo)
-				window.Invalidate()
-			case route := <-routeCh:
-				updateGridDataRoute(route, "")
-				go sendRouteWhenFree(carinfos, route)
-				window.Invalidate()
-			}
-		}
-	}()
-
-	// Event loop
+func waitForUpdates(window *app.Window) bool {
 	for {
-		e := window.Event()
-		switch e := e.(type) {
-		case app.DestroyEvent:
-			return e.Err
-		case app.FrameEvent:
-			gtx := app.NewContext(&ops, e)
-			drawGrid(gtx, theme)
-			e.Frame(gtx.Ops)
+		select {
+		case carInfo := <-carInfoCh:
+			var oldCarInfo = updateCarinfo(carInfo)
+			updateGridData(oldCarInfo, carInfo)
+			updateCarinfo(carInfo)
+			window.Invalidate()
+		case route := <-routeCh:
+			updateGridDataRoute(route, "")
+			go sendRouteWhenFree(carinfos, route)
+			window.Invalidate()
 		}
 	}
 }
@@ -250,7 +168,6 @@ func updateGridData(oldCarInfo *api.CarInfo, newCarInfo *api.CarInfo) {
 	if oldCarInfo != nil && gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][0] == utils.Settings.CarAndRouteAscii {
 		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.RouteAscii, gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][1]}
 	}
-
 }
 
 func updateGridDataRoute(route *api.Route, color string) {
@@ -259,55 +176,17 @@ func updateGridDataRoute(route *api.Route, color string) {
 	}
 }
 
-func drawGrid(gtx layout.Context, th *material.Theme) layout.Dimensions {
-	var rows []layout.FlexChild
-	for _, rowData := range gridData {
-		row := rowData
-		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return drawRow(gtx, th, row)
-		}))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
-}
+func Run() {
 
-func drawRow(gtx layout.Context, th *material.Theme, data [][2]string) layout.Dimensions {
-	var widgets []layout.FlexChild
-	for _, cell := range data {
-		cellContent := cell[0]
-		cellColor := cell[1]
+	go startServer()
 
-		widgets = append(widgets, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			label := material.Body1(th, cellContent)
-			label.TextSize = unit.Sp(utils.Settings.FontSize)
-			label.Font.Weight = font.Bold
+	go generateRandomRoute()
 
-			var col color.NRGBA
-			switch cellColor {
-			case "Rot":
-				col = color.NRGBA{R: 255, G: 0, B: 0, A: 255} // Rot
-			case "Grün":
-				col = color.NRGBA{R: 0, G: 255, B: 0, A: 255} // Grün
-			case "Blau":
-				col = color.NRGBA{R: 0, G: 0, B: 255, A: 255} // Blau
-			case "Cyan":
-				col = color.NRGBA{R: 0, G: 255, B: 255, A: 255} // Cyan
-			case "Magenta":
-				col = color.NRGBA{R: 255, G: 0, B: 255, A: 255} // Magenta
-			case "Orange":
-				col = color.NRGBA{R: 255, G: 165, B: 0, A: 255} // Orange
-			case "Pink":
-				col = color.NRGBA{R: 255, G: 192, B: 203, A: 255} // Pink
-			case "Lila":
-				col = color.NRGBA{R: 128, G: 0, B: 128, A: 255} // Lila
-			case "Braun":
-				col = color.NRGBA{R: 165, G: 42, B: 42, A: 255} // Braun
-			default:
-				col = color.NRGBA{R: 0, G: 0, B: 0, A: 255} // Schwarz
-			}
-			label.Color = col
+	window := new(app.Window)
 
-			return label.Layout(gtx)
-		}))
-	}
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, widgets...)
+	go display(window)
+
+	go waitForUpdates(window)
+
+	app.Main()
 }

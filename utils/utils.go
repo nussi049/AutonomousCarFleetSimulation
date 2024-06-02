@@ -53,7 +53,7 @@ func createSquare() string {
 }
 
 var Settings = DisplaySettings{
-	GridSize:   18,
+	GridSize:   16,
 	FontSize:   8,
 	EmptyAscii: createEmptyString(),
 	CarAscii:   "  ______\n /|_||_\\.__\n(   _    _ _\\\n=`-(_)--(_)-'",
