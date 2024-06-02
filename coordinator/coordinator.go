@@ -4,6 +4,8 @@ import (
 	"AutonomousCarFleetSimulation/api"
 	"AutonomousCarFleetSimulation/utils"
 	"context"
+	"image/color"
+	"math"
 	"math/rand"
 	"net"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"os"
 
 	"gioui.org/app"
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -21,43 +24,26 @@ import (
 )
 
 var (
-	carinfo      = make([]utils.CarInfo, 0)
+	carinfos     = make([]*api.CarInfo, 0)
 	carinfoMutex sync.Mutex
-	carInfoCh    = make(chan utils.CarInfo)
-	routeCh      = make(chan []utils.Coordinate)
+	carInfoCh    = make(chan *api.CarInfo)
+	routeCh      = make(chan *api.Route)
+	gridData     = utils.CreateDataGrid()
 )
-
-var gridData = make([][]string, utils.Settings.GridSize)
 
 type CoordinatorServiceServer struct {
 	api.CoordinatorServiceServer
 }
 
-func (s *CoordinatorServiceServer) SendCarInfo(req *api.CarInfoRequest, srv api.CoordinatorService_SendCarInfoServer) error {
-	// Extract CarInfo from the request and send it to the channel
-	carInfo := utils.CarInfo{
-		Identifier:  req.Identifier,
-		Position:    utils.Coordinate{X: req.Position.GetX(), Y: req.Position.GetY()},
-		Route:       convertCoordinates(req.Route),
-		ActiveRoute: req.ActiveRoute,
-	}
-
+func (s *CoordinatorServiceServer) SendCarInfo(ctx context.Context, req *api.CarInfo) (*api.CarInfoResponse, error) {
 	// Send CarInfo to the channel
-	carInfoCh <- carInfo
-	log.Printf("Car info received successfully from: %v", carInfo.Identifier)
+	carInfoCh <- req
+	log.Printf("Car info received successfully from: %v", req.Identifier)
 
 	// Return success message
-	return srv.Send(&api.CarInfoResponse{
+	return &api.CarInfoResponse{
 		Message: "Car info received successfully",
-	})
-}
-
-func convertCoordinates(coords []*api.Coordinate) []utils.Coordinate {
-	var converted []utils.Coordinate
-	for _, c := range coords {
-		converted = append(converted, utils.Coordinate{X: c.GetX(), Y: c.GetY()})
-	}
-	return converted
+	}, nil
 }
 
 func startServer() {
@@ -81,27 +67,16 @@ func startServer() {
 
 func generateRandomRoute() {
 	for {
-		time.Sleep(50 * time.Second)
-		start := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
-		end := utils.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
-		route := utils.CalculatePath(start, end)
-		routeCh <- route
+		time.Sleep(10 * time.Second)
+		start := &api.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
+		end := &api.Coordinate{X: int32(rand.Intn(int(utils.Settings.GridSize))), Y: int32(rand.Intn(int(utils.Settings.GridSize)))}
+		route := utils.CalculatePath(start, end, nil)
+		routeCh <- &api.Route{Coordinates: route}
 		log.Printf("Generated Random Route from %v to %v and path %v", start, end, route)
 	}
 }
 
-func convertRoute(coords []utils.Coordinate) []*api.Coordinate {
-	apiCoords := make([]*api.Coordinate, len(coords))
-	for i, coord := range coords {
-		apiCoords[i] = &api.Coordinate{
-			X: coord.X,
-			Y: coord.Y,
-		}
-	}
-	return apiCoords
-}
-
-func sendRoute(carinfo utils.CarInfo, route []utils.Coordinate) {
+func sendRoute(carinfo *api.CarInfo, route *api.Route) {
 	// Set up a connection to the gRPC server.
 	conn, err := grpc.Dial(carinfo.Identifier, grpc.WithInsecure())
 	if err != nil {
@@ -112,13 +87,8 @@ func sendRoute(carinfo utils.CarInfo, route []utils.Coordinate) {
 	// Create a client instance.
 	client := api.NewCarClientServiceClient(conn)
 
-	// Create a car info request.
-	request := &api.RouteRequest{
-		Route: convertRoute(route),
-	}
-
 	// Send the car info request to the server.
-	response, err := client.SendRoute(context.Background(), request)
+	response, err := client.SendRoute(context.Background(), route)
 	if err != nil {
 		log.Fatalf("Failed to send route to car: %v", err)
 	}
@@ -128,14 +98,6 @@ func sendRoute(carinfo utils.CarInfo, route []utils.Coordinate) {
 func Run() {
 
 	go startServer()
-
-	// Create empty datagrid
-	for i := range gridData {
-		gridData[i] = make([]string, utils.Settings.GridSize)
-		for j := range gridData[i] {
-			gridData[i][j] = utils.Settings.EmptyAscii
-		}
-	}
 
 	go generateRandomRoute()
 
@@ -163,12 +125,13 @@ func display(window *app.Window) error {
 		for {
 			select {
 			case carInfo := <-carInfoCh:
-				var oldCarInfo utils.CarInfo = updateCarinfo(carInfo)
+				var oldCarInfo = updateCarinfo(carInfo)
 				updateGridData(oldCarInfo, carInfo)
+				updateCarinfo(carInfo)
 				window.Invalidate()
 			case route := <-routeCh:
-				updateGridDataRoute(route)
-				sendRoute(findCarWithShortestPath(carinfo, route), route)
+				updateGridDataRoute(route, "")
+				go sendRouteWhenFree(carinfos, route)
 				window.Invalidate()
 			}
 		}
@@ -188,62 +151,111 @@ func display(window *app.Window) error {
 	}
 }
 
-// findCarWithShortestPath findet das Auto mit dem kürzesten Pfad zum Startpunkt der Route
-func findCarWithShortestPath(carInfos []utils.CarInfo, route []utils.Coordinate) utils.CarInfo {
-	if len(route) == 0 {
-		return utils.CarInfo{}
-	}
-	startPoint := route[0]
-	var shortestCar utils.CarInfo
-	shortestLength := int(^uint(0) >> 1) // Maximum int value
-
-	for _, carInfo := range carInfos {
-		path := utils.CalculatePath(carInfo.Position, startPoint)
-		if len(path) < shortestLength {
-			shortestLength = len(path)
-			shortestCar = carInfo
-		}
-	}
-	log.Printf("Shortest Path to route: %v", shortestCar.Identifier)
-
-	return shortestCar
+func sendRouteWhenFree(carInfos []*api.CarInfo, route *api.Route) {
+	freeCar := findCarWithShortestPath(carInfos, route)
+	sendRoute(freeCar, route)
 }
 
-func updateCarinfo(newCarInfo utils.CarInfo) utils.CarInfo {
+func findCarWithShortestPath(carInfos []*api.CarInfo, route *api.Route) *api.CarInfo {
+	if len(route.Coordinates) == 0 {
+		return nil
+	}
+	startPoint := route.Coordinates[0]
+
+	for {
+		carinfoMutex.Lock()
+		var shortestCar *api.CarInfo
+		shortestLength := math.MaxFloat64
+
+		for _, carInfo := range carInfos {
+			if !carInfo.ActiveRoute {
+				dist := utils.Distance(carInfo.Position, startPoint)
+				if dist < shortestLength {
+					shortestLength = dist
+					shortestCar = carInfo
+				}
+			}
+		}
+
+		if shortestCar != nil {
+			shortestCar.ActiveRoute = true
+			shortestCar.Route = route
+			updateGridDataRoute(route, shortestCar.Color)
+			carinfoMutex.Unlock()
+			log.Printf("Shortest Path to route: %v", shortestCar.Identifier)
+			return shortestCar
+		}
+		carinfoMutex.Unlock()
+		log.Println("No free car found, waiting for 1 second")
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func updateCarinfo(newCarInfo *api.CarInfo) *api.CarInfo {
 	carinfoMutex.Lock()
 	defer carinfoMutex.Unlock()
 
-	var oldCarInfo utils.CarInfo
-	for i, car := range carinfo {
+	var oldCarInfo *api.CarInfo
+	for i, car := range carinfos {
 		if car.Identifier == newCarInfo.Identifier {
 			// Save the old carinfo
 			oldCarInfo = car
 
 			// Update the carinfo slice with the new carinfo
-			carinfo[i] = newCarInfo
+			carinfos[i] = newCarInfo
 
 			return oldCarInfo
 		}
 	}
 
-	carinfo = append(carinfo, newCarInfo)
-
-	return utils.CarInfo{}
+	// Append new CarInfo if not found
+	carinfos = append(carinfos, newCarInfo)
+	return nil
 }
 
-func updateGridData(oldCarInfo utils.CarInfo, newCarInfo utils.CarInfo) {
+func updateGridData(oldCarInfo *api.CarInfo, newCarInfo *api.CarInfo) {
 	carinfoMutex.Lock()
 	defer carinfoMutex.Unlock()
 
-	// Delete old position of car
-	gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = utils.Settings.EmptyAscii
-	// set new position of car
-	gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = utils.Settings.CarAscii
+	if oldCarInfo != nil && gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][0] == utils.Settings.CarAscii {
+		// Delete old position of car
+		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.EmptyAscii, ""}
+	}
+
+	// If new field empty: Set CarAscii
+	if gridData[newCarInfo.Position.X][newCarInfo.Position.Y][0] == utils.Settings.EmptyAscii {
+		gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
+	}
+	// If new field route
+	if gridData[newCarInfo.Position.X][newCarInfo.Position.Y][0] == utils.Settings.RouteAscii {
+		var isRoute bool = false
+		for _, coord := range newCarInfo.Route.Coordinates {
+			if coord.X == newCarInfo.Position.X && coord.Y == newCarInfo.Position.Y {
+				isRoute = true
+				break
+			}
+		}
+		// if field is coord of own route: Set CarAscii
+		if isRoute {
+			gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAscii, newCarInfo.Color}
+			if oldCarInfo != nil {
+				gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.EmptyAscii, ""}
+			}
+		} else {
+			// if field is not coord in own route: Set CarAndRouteAscii with color of old value
+			gridData[newCarInfo.Position.X][newCarInfo.Position.Y] = [2]string{utils.Settings.CarAndRouteAscii, gridData[newCarInfo.Position.X][newCarInfo.Position.Y][1]}
+		}
+	}
+	// If CarAndRouteAscii is set: Set old position to Route Ascii with old color and new position to new CarAscii
+	if oldCarInfo != nil && gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][0] == utils.Settings.CarAndRouteAscii {
+		gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y] = [2]string{utils.Settings.RouteAscii, gridData[oldCarInfo.Position.X][oldCarInfo.Position.Y][1]}
+	}
+
 }
 
-func updateGridDataRoute(route []utils.Coordinate) {
-	for _, coord := range route {
-		gridData[coord.X][coord.Y] = utils.Settings.RouteAscii
+func updateGridDataRoute(route *api.Route, color string) {
+	for _, coord := range route.Coordinates {
+		gridData[coord.X][coord.Y] = [2]string{utils.Settings.RouteAscii, color}
 	}
 }
 
@@ -258,13 +270,42 @@ func drawGrid(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-func drawRow(gtx layout.Context, th *material.Theme, data []string) layout.Dimensions {
+func drawRow(gtx layout.Context, th *material.Theme, data [][2]string) layout.Dimensions {
 	var widgets []layout.FlexChild
 	for _, cell := range data {
-		cell := cell
+		cellContent := cell[0]
+		cellColor := cell[1]
+
 		widgets = append(widgets, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			label := material.Body1(th, cell)
+			label := material.Body1(th, cellContent)
 			label.TextSize = unit.Sp(utils.Settings.FontSize)
+			label.Font.Weight = font.Bold
+
+			var col color.NRGBA
+			switch cellColor {
+			case "Rot":
+				col = color.NRGBA{R: 255, G: 0, B: 0, A: 255} // Rot
+			case "Grün":
+				col = color.NRGBA{R: 0, G: 255, B: 0, A: 255} // Grün
+			case "Blau":
+				col = color.NRGBA{R: 0, G: 0, B: 255, A: 255} // Blau
+			case "Cyan":
+				col = color.NRGBA{R: 0, G: 255, B: 255, A: 255} // Cyan
+			case "Magenta":
+				col = color.NRGBA{R: 255, G: 0, B: 255, A: 255} // Magenta
+			case "Orange":
+				col = color.NRGBA{R: 255, G: 165, B: 0, A: 255} // Orange
+			case "Pink":
+				col = color.NRGBA{R: 255, G: 192, B: 203, A: 255} // Pink
+			case "Lila":
+				col = color.NRGBA{R: 128, G: 0, B: 128, A: 255} // Lila
+			case "Braun":
+				col = color.NRGBA{R: 165, G: 42, B: 42, A: 255} // Braun
+			default:
+				col = color.NRGBA{R: 0, G: 0, B: 0, A: 255} // Schwarz
+			}
+			label.Color = col
+
 			return label.Layout(gtx)
 		}))
 	}

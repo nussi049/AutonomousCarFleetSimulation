@@ -22,12 +22,12 @@ This project simulates a fleet of autonomous cars navigating within a grid. Each
 
 ## Project Structure
 
-- **coordinator**: Contains the code for the central coordinator which generates routes and sends them to the cars.
+- **coordinator**: Contains the code for the central coordinator which generates routes and sends them to the cars. Also responsible for the gui.
 - **carclient**: Contains the code for the car clients which receive routes, navigate the grid, and update their positions.
-- **api**: Contains the gRPC service definitions and generated code.
+- **api**: Contains the gRPC service definitions and api data structures.
 - **utils**: Contains utility functions and data structures used throughout the project.
 
-## How to Run
+## How to Run Coordinator Client and Car Clients Manually 
 
 1. **Setup Environment**: Ensure you have Go installed on your machine.
 2. **Clone the Repository**: 
@@ -45,15 +45,18 @@ This project simulates a fleet of autonomous cars navigating within a grid. Each
     ```
 5. **Run the Car Clients**: Open multiple terminal windows and run the following command in each:
     ```sh
-    go run carclient/main.go
+    go run carclient/main.go --port=<PORT> --color=<COLOR>
     ```
 
-## Future Enhancements
+## Run Simulation
 
-- **Path Optimization**: Implement algorithms for optimizing the pathfinding of cars.
-- **Collision Detection**: Add logic for collision detection and avoidance.
-- **Scalability**: Enhance the system to support larger grids and more cars efficiently.
-- **Advanced GUI Features**: Improve the GUI for better visualization and interaction, including zooming and panning features.
+1. **For Quick Use**:
+    ```sh
+        ./start_simulation.sh <CARS> <GRIDSIZE>   
+    ```
+The first digit <CARS> defines the number of carclients and the second parameter <GRIDSIZE> defines the maximum grid size. 
+The Grid Size should be equal to the GridSize attribute defined in the utils.go DisplaySettings struct.
+
 
 ## Lessons Learned
 
