@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CarClientService_SendRoute_FullMethodName = "/CarClientService/SendRoute"
+	CarClientService_SendRoute_FullMethodName     = "/CarClientService/SendRoute"
+	CarClientService_DiscoverPeers_FullMethodName = "/CarClientService/DiscoverPeers"
 )
 
 // CarClientServiceClient is the client API for CarClientService service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CarClientServiceClient interface {
 	SendRoute(ctx context.Context, in *Route, opts ...grpc.CallOption) (*RouteResponse, error)
+	DiscoverPeers(ctx context.Context, in *DiscoverRequest, opts ...grpc.CallOption) (*DiscoverResponse, error)
 }
 
 type carClientServiceClient struct {
@@ -46,11 +48,21 @@ func (c *carClientServiceClient) SendRoute(ctx context.Context, in *Route, opts 
 	return out, nil
 }
 
+func (c *carClientServiceClient) DiscoverPeers(ctx context.Context, in *DiscoverRequest, opts ...grpc.CallOption) (*DiscoverResponse, error) {
+	out := new(DiscoverResponse)
+	err := c.cc.Invoke(ctx, CarClientService_DiscoverPeers_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CarClientServiceServer is the server API for CarClientService service.
 // All implementations must embed UnimplementedCarClientServiceServer
 // for forward compatibility
 type CarClientServiceServer interface {
 	SendRoute(context.Context, *Route) (*RouteResponse, error)
+	DiscoverPeers(context.Context, *DiscoverRequest) (*DiscoverResponse, error)
 	mustEmbedUnimplementedCarClientServiceServer()
 }
 
@@ -60,6 +72,9 @@ type UnimplementedCarClientServiceServer struct {
 
 func (UnimplementedCarClientServiceServer) SendRoute(context.Context, *Route) (*RouteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendRoute not implemented")
+}
+func (UnimplementedCarClientServiceServer) DiscoverPeers(context.Context, *DiscoverRequest) (*DiscoverResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DiscoverPeers not implemented")
 }
 func (UnimplementedCarClientServiceServer) mustEmbedUnimplementedCarClientServiceServer() {}
 
@@ -92,6 +107,24 @@ func _CarClientService_SendRoute_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CarClientService_DiscoverPeers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiscoverRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CarClientServiceServer).DiscoverPeers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CarClientService_DiscoverPeers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CarClientServiceServer).DiscoverPeers(ctx, req.(*DiscoverRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CarClientService_ServiceDesc is the grpc.ServiceDesc for CarClientService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -102,6 +135,10 @@ var CarClientService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendRoute",
 			Handler:    _CarClientService_SendRoute_Handler,
+		},
+		{
+			MethodName: "DiscoverPeers",
+			Handler:    _CarClientService_DiscoverPeers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
