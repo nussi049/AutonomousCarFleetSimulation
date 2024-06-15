@@ -26,17 +26,11 @@ message CarInfoResponse {
   string message = 1;
 }
 
-message DiscoverRequest {
-    string identifier = 1;
-}
-
-message DiscoverResponse {
-    repeated CarInfo peers = 1;
-}
+message Empty {}
 
 service CarClientService {
   rpc SendRoute (Route) returns (RouteResponse);
-  rpc DiscoverPeers(DiscoverRequest) returns (DiscoverResponse);
+  rpc GetCarInfo(Empty) returns (CarInfo);
 }
 
 service CoordinatorService {
