@@ -1,14 +1,15 @@
 #!/bin/bash
 
 # Parameter prüfen
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <number_of_cars> <max_value>"
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 <number_of_cars> <max_value> <advancedDrive>"
     exit 1
 fi
 
-# Anzahl der Autos und maximaler Zufallswert
+# Anzahl der Autos, maximaler Zufallswert und advancedDrive Flag
 num_cars=$1
 max_value=$2
+advanced_drive=$3
 
 # Farben
 colors=("Rot" "Grün" "Blau" "Cyan" "Magenta" "Orange" "Pink" "Lila" "Braun" "Schwarz")
@@ -29,8 +30,8 @@ do
     color=${colors[$(( (i - 1) % ${#colors[@]} ))]}
     x=$((RANDOM % max_value))
     y=$((RANDOM % max_value))
-    echo "Starting car $i on port $port with color $color, x=$x, y=$y..."
-    go run carclient/cmd/main.go --port=$port --color=$color --x=$x --y=$y &
+    echo "Starting car $i on port $port with color $color, x=$x, y=$y, advancedDrive=$advanced_drive..."
+    go run carclient/cmd/main.go --port=$port --color=$color --x=$x --y=$y --advancedDrive=$advanced_drive &
 done
 
 # Auf Eingabe warten, um die Skriptausführung zu stoppen

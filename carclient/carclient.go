@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"math/rand"
 	"net"
 	"sync"
@@ -27,9 +28,12 @@ type Car struct {
 	GridHeight  int
 	LastMoveDir int // 0: up, 1: down, 2: left, 3: right
 	mu          sync.Mutex
+	peerMutex   sync.Mutex
+	peers       map[string]*api.CarInfo
+	advancedD   bool
 }
 
-func newCar(identifier string, startPos *api.Coordinate, color string) *Car {
+func newCar(identifier string, startPos *api.Coordinate, color string, advancedD bool) *Car {
 	// Establish a connection to the car client service via gRPC
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -49,9 +53,11 @@ func newCar(identifier string, startPos *api.Coordinate, color string) *Car {
 		},
 		Conn:        conn,
 		Client:      client,
-		GridWidth:   utils.Settings.GridSize, // Assuming the grid size is 8, adjust if needed
-		GridHeight:  utils.Settings.GridSize, // Assuming the grid size is 8, adjust if needed
-		LastMoveDir: -1,                      // Initialize to an invalid direction
+		GridWidth:   utils.Settings.GridSize,       // Assuming the grid size is 8, adjust if needed
+		GridHeight:  utils.Settings.GridSize,       // Assuming the grid size is 8, adjust if needed
+		LastMoveDir: -1,                            // Initialize to an invalid direction
+		peers:       make(map[string]*api.CarInfo), // Initialize peers map
+		advancedD:   advancedD,
 	}
 }
 
@@ -62,8 +68,13 @@ func (c *Car) drive() {
 		fmt.Println("Switching to driveRoute mode")
 		c.driveRoute()
 	} else {
-		c.mu.Unlock()
-		c.randomDrive()
+		if c.advancedD {
+			c.mu.Unlock()
+			c.advancedDrive()
+		} else {
+			c.mu.Unlock()
+			c.randomDrive()
+		}
 	}
 	c.mu.Lock()
 	fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
@@ -81,7 +92,11 @@ func (c *Car) randomDrive() {
 			continue // Skip if it is the opposite of the last move
 		}
 
-		newPosition := *c.Car.Position
+		// Create a new instance of api.Coordinate
+		newPosition := &api.Coordinate{
+			X: c.Car.Position.X,
+			Y: c.Car.Position.Y,
+		}
 
 		switch moveDirection {
 		case 0:
@@ -117,7 +132,7 @@ func (c *Car) randomDrive() {
 		// If the new position is valid and not reversing the last move, update the position and break the loop
 		c.LastMoveDir = moveDirection
 		c.mu.Lock()
-		c.Car.Position = &newPosition
+		c.Car.Position = newPosition
 		c.mu.Unlock()
 		break
 	}
@@ -135,6 +150,57 @@ func (c *Car) oppositeDirection() int {
 		return 2 // Opposite of right is left
 	default:
 		return -1 // No valid last direction
+	}
+}
+
+func (c *Car) manhattanDistance(p1, p2 *api.Coordinate) int {
+	return int(math.Abs(float64(p1.X-p2.X)) + math.Abs(float64(p1.Y-p2.Y)))
+}
+
+func (c *Car) calculateCost(pos *api.Coordinate) float64 {
+	c.peerMutex.Lock()
+	defer c.peerMutex.Unlock()
+
+	cost := 0.0
+	for _, peer := range c.peers {
+		distance := c.manhattanDistance(pos, peer.Position)
+		if distance != 0 {
+			cost += 1 / float64(distance)
+		}
+	}
+	return cost
+}
+
+func (c *Car) advancedDrive() {
+	potentialPositions := []*api.Coordinate{
+		{X: c.Car.Position.X, Y: c.Car.Position.Y + 1}, // up
+		{X: c.Car.Position.X, Y: c.Car.Position.Y - 1}, // down
+		{X: c.Car.Position.X - 1, Y: c.Car.Position.Y}, // left
+		{X: c.Car.Position.X + 1, Y: c.Car.Position.Y}, // right
+		{X: c.Car.Position.X, Y: c.Car.Position.Y},     // hold
+	}
+
+	var bestPosition *api.Coordinate
+	minCost := math.MaxFloat64
+
+	for _, pos := range potentialPositions {
+		// Check if the position is within bounds
+		if pos.X < 0 || pos.X >= int32(c.GridWidth) || pos.Y < 0 || pos.Y >= int32(c.GridHeight) {
+			continue
+		}
+
+		cost := c.calculateCost(pos)
+		if cost < minCost {
+			minCost = cost
+			bestPosition = pos
+		}
+	}
+
+	// Update the car's position
+	if bestPosition != nil {
+		c.mu.Lock()
+		c.Car.Position = bestPosition
+		c.mu.Unlock()
 	}
 }
 
@@ -220,6 +286,94 @@ type CarClientServiceServer struct {
 	car *Car
 }
 
+func (s *CarClientServiceServer) GetCarInfo(ctx context.Context, in *api.Empty) (*api.CarInfo, error) {
+	// Implementiere deine Logik hier
+	return &api.CarInfo{
+		Identifier:  s.car.Car.Identifier,
+		Position:    s.car.Car.Position,
+		Route:       s.car.Car.Route,
+		ActiveRoute: s.car.Car.ActiveRoute,
+		Color:       s.car.Car.Color,
+	}, nil
+}
+
+func (c *Car) discoverPeers() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		for port := 50001; port <= 50100; port++ {
+			address := fmt.Sprintf("localhost:%d", port)
+
+			// Skip own port
+			if address == c.Car.Identifier {
+				continue
+			}
+
+			// Skip peers which are already in peer group
+			exists := false
+			for _, peer := range c.peers {
+				if peer.Identifier == address {
+					exists = true
+					break
+				}
+			}
+			if exists {
+				continue
+			}
+
+			conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				continue
+			}
+
+			client := api.NewCarClientServiceClient(conn)
+			resp, err := client.GetCarInfo(context.Background(), &api.Empty{})
+			if err != nil {
+				conn.Close()
+				continue
+			}
+			c.peerMutex.Lock()
+			c.peers[resp.Identifier] = resp
+			c.peerMutex.Unlock()
+			conn.Close()
+			fmt.Println("Found Peer at: %s", address)
+			fmt.Println("%s", c.peers[resp.Identifier].Position)
+		}
+	}
+	fmt.Print(c.peers)
+}
+
+func (c *Car) updatePeers() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		c.peerMutex.Lock()
+		for id, peer := range c.peers {
+			conn, err := grpc.Dial(peer.Identifier, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				fmt.Printf("Failed to connect to peer %s: %v\n", peer.Identifier, err)
+				delete(c.peers, id)
+				continue
+			}
+
+			client := api.NewCarClientServiceClient(conn)
+			resp, err := client.GetCarInfo(context.Background(), &api.Empty{})
+			if err != nil || resp == nil {
+				fmt.Printf("Failed to update peer info for %s: %v\n", peer.Identifier, err)
+				conn.Close()
+				delete(c.peers, id)
+				continue
+			}
+
+			c.peers[resp.Identifier] = resp
+			conn.Close()
+		}
+		c.peerMutex.Unlock()
+	}
+}
+
 func (s *CarClientServiceServer) SendRoute(ctx context.Context, req *api.Route) (*api.RouteResponse, error) {
 	return s.car.SendRoute(ctx, req)
 }
@@ -244,22 +398,27 @@ func StartClient() {
 	color := flag.String("color", "", "Color of car")
 	x := flag.Int("x", 3, "X Coordinate to start")
 	y := flag.Int("y", 3, "Y Coordinate to start")
+	advancedD := flag.Bool("advancedDrive", false, "AdvancedDrive Function")
 	flag.Parse()
 
 	startPos := &api.Coordinate{X: int32(*x), Y: int32(*y)}
 
 	println(fmt.Sprintf("localhost:%d", *port))
-	car := newCar(fmt.Sprintf("localhost:%d", *port), startPos, *color)
+	car := newCar(fmt.Sprintf("localhost:%d", *port), startPos, *color, *advancedD)
 	if car == nil {
 		fmt.Println("Failed to create car client")
 		return
 	}
 	fmt.Printf("Starting car: %+v\n", car.Car)
 	go car.startDriving()          // Start driving in a separate goroutine
-	go car.periodicCarInfoUpdate() // Start periodic updates in a separate goroutine
+	go car.periodicCarInfoUpdate() // Start periodic car info updates in a separate goroutine
 
 	// Start the car client gRPC server
 	go startCarClientServer(car, fmt.Sprintf(":%d", *port))
+
+	go car.discoverPeers() // Start peer discovery in a separate goroutine
+
+	go car.updatePeers() // Ask periodically for positon updates of all peers
 
 	select {} // Block forever
 }

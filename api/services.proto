@@ -26,8 +26,11 @@ message CarInfoResponse {
   string message = 1;
 }
 
+message Empty {}
+
 service CarClientService {
   rpc SendRoute (Route) returns (RouteResponse);
+  rpc GetCarInfo(Empty) returns (CarInfo);
 }
 
 service CoordinatorService {
