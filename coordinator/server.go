@@ -33,7 +33,7 @@ func startServer() {
 	api.RegisterCoordinatorServiceServer(server, coordinatorServer)
 
 	// Start the server on a specific port
-	listener, err := net.Listen("tcp", ":50051")
+	listener, err := net.Listen("tcp", ":50000")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
