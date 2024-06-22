@@ -12,7 +12,7 @@ import (
 func (c *Car) drive() {
 	for {
 		c.mu.Lock()
-		if c.Car.ActiveRoute && len(c.Car.Route.Coordinates) > 0 {
+		if c.CarInfo.ActiveRoute && len(c.CarInfo.Route.Coordinates) > 0 {
 			c.mu.Unlock()
 			fmt.Println("Switching to driveRoute mode")
 			c.driveRoute()
@@ -28,7 +28,7 @@ func (c *Car) drive() {
 			}
 		}
 		c.mu.Lock()
-		fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		fmt.Printf("Driving to new position: X: %d, Y: %d\n", c.CarInfo.Position.X, c.CarInfo.Position.Y)
 		c.mu.Unlock()
 		c.updateCoordinator()       // Send updated position to the coordinator
 		time.Sleep(1 * time.Second) // Simulate driving time
@@ -47,8 +47,8 @@ func (c *Car) randomDrive() {
 
 		// Create a new instance of api.Coordinate
 		newPosition := &api.Coordinate{
-			X: c.Car.Position.X,
-			Y: c.Car.Position.Y,
+			X: c.CarInfo.Position.X,
+			Y: c.CarInfo.Position.Y,
 		}
 
 		switch moveDirection {
@@ -85,7 +85,7 @@ func (c *Car) randomDrive() {
 		// If the new position is valid and not reversing the last move, update the position and break the loop
 		c.LastMoveDir = moveDirection
 		c.mu.Lock()
-		c.Car.Position = newPosition
+		c.CarInfo.Position = newPosition
 		c.mu.Unlock()
 		break
 	}
@@ -126,11 +126,11 @@ func (c *Car) calculateCost(pos *api.Coordinate) float64 {
 
 func (c *Car) advancedDrive() {
 	potentialPositions := []*api.Coordinate{
-		{X: c.Car.Position.X, Y: c.Car.Position.Y + 1}, // up
-		{X: c.Car.Position.X, Y: c.Car.Position.Y - 1}, // down
-		{X: c.Car.Position.X - 1, Y: c.Car.Position.Y}, // left
-		{X: c.Car.Position.X + 1, Y: c.Car.Position.Y}, // right
-		{X: c.Car.Position.X, Y: c.Car.Position.Y},     // hold
+		{X: c.CarInfo.Position.X, Y: c.CarInfo.Position.Y + 1}, // up
+		{X: c.CarInfo.Position.X, Y: c.CarInfo.Position.Y - 1}, // down
+		{X: c.CarInfo.Position.X - 1, Y: c.CarInfo.Position.Y}, // left
+		{X: c.CarInfo.Position.X + 1, Y: c.CarInfo.Position.Y}, // right
+		{X: c.CarInfo.Position.X, Y: c.CarInfo.Position.Y},     // hold
 	}
 
 	var bestPosition *api.Coordinate
@@ -152,33 +152,33 @@ func (c *Car) advancedDrive() {
 	// Update the car's position
 	if bestPosition != nil {
 		c.mu.Lock()
-		c.Car.Position = bestPosition
+		c.CarInfo.Position = bestPosition
 		c.mu.Unlock()
 	}
 }
 
 func (c *Car) driveRoute() {
-	if len(c.Car.Route.Coordinates) == 0 {
+	if len(c.CarInfo.Route.Coordinates) == 0 {
 		return
 	}
 
 	// Drive to the first position in the route
-	toRouteStart := utils.CalculatePath(c.Car.Position, c.Car.Route.Coordinates[0], c.Car.Route)
+	toRouteStart := utils.CalculatePath(c.CarInfo.Position, c.CarInfo.Route.Coordinates[0], c.CarInfo.Route)
 	fmt.Println("Path to route start:", toRouteStart)
 
 	for _, coord := range toRouteStart {
 		c.mu.Lock()
-		c.Car.Position = coord
-		fmt.Printf("Driving to route start: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.CarInfo.Position = coord
+		fmt.Printf("Driving to route start: X: %d, Y: %d\n", c.CarInfo.Position.X, c.CarInfo.Position.Y)
 		c.mu.Unlock()
 		c.updateCoordinator()
 		time.Sleep(1 * time.Second)
 	}
 
-	for _, coord := range c.Car.Route.Coordinates {
+	for _, coord := range c.CarInfo.Route.Coordinates {
 		c.mu.Lock()
-		c.Car.Position = coord
-		fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.Car.Position.X, c.Car.Position.Y)
+		c.CarInfo.Position = coord
+		fmt.Printf("Driving to route position: X: %d, Y: %d\n", c.CarInfo.Position.X, c.CarInfo.Position.Y)
 		c.mu.Unlock()
 		c.updateCoordinator()
 		time.Sleep(1 * time.Second)
@@ -187,7 +187,7 @@ func (c *Car) driveRoute() {
 	fmt.Println("Route completed. Checking for new route or switching to random drive after 1 seconds.")
 	time.Sleep(1 * time.Second)
 	c.mu.Lock()
-	c.Car.ActiveRoute = false // Route is completed, switch to random drive if no new route
+	c.CarInfo.ActiveRoute = false // Route is completed, switch to random drive if no new route
 	fmt.Printf("Set Active Route to false")
 
 	c.mu.Unlock()

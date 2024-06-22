@@ -15,13 +15,13 @@ type CarClientServiceServer struct {
 }
 
 func (s *CarClientServiceServer) GetCarInfo(ctx context.Context, in *api.Empty) (*api.CarInfo, error) {
-	// Implementiere deine Logik hier
+	// Implement your logic here
 	return &api.CarInfo{
-		Identifier:  s.car.Car.Identifier,
-		Position:    s.car.Car.Position,
-		Route:       s.car.Car.Route,
-		ActiveRoute: s.car.Car.ActiveRoute,
-		Color:       s.car.Car.Color,
+		Identifier:  s.car.CarInfo.Identifier,
+		Position:    s.car.CarInfo.Position,
+		Route:       s.car.CarInfo.Route,
+		ActiveRoute: s.car.CarInfo.ActiveRoute,
+		Color:       s.car.CarInfo.Color,
 	}, nil
 }
 
@@ -29,14 +29,14 @@ func (s *CarClientServiceServer) SendRoute(ctx context.Context, req *api.Route) 
 	s.car.mu.Lock()
 	defer s.car.mu.Unlock()
 
-	// Debug-Ausgabe der neuen Route
+	// Debug output of the new route
 	fmt.Println("Received new route:")
 	for _, coord := range req.Coordinates {
 		fmt.Printf("Coordinate: X=%d, Y=%d\n", coord.X, coord.Y)
 	}
 
-	s.car.Car.Route = req
-	s.car.Car.ActiveRoute = true
+	s.car.CarInfo.Route = req
+	s.car.CarInfo.ActiveRoute = true
 	fmt.Println("Route updated successfully")
 
 	return &api.RouteResponse{Message: "Route received successfully"}, nil

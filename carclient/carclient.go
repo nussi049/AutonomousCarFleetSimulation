@@ -14,7 +14,7 @@ import (
 )
 
 type Car struct {
-	Car         *api.CarInfo
+	CarInfo     *api.CarInfo
 	Conn        *grpc.ClientConn
 	Client      api.CoordinatorServiceClient
 	GridWidth   int
@@ -37,7 +37,7 @@ func newCar(identifier string, startPos *api.Coordinate, color string, advancedD
 	client := api.NewCoordinatorServiceClient(conn)
 
 	return &Car{
-		Car: &api.CarInfo{
+		CarInfo: &api.CarInfo{
 			Identifier:  identifier,
 			Position:    startPos,
 			Route:       &api.Route{Coordinates: []*api.Coordinate{}}, // Empty route to start with
@@ -57,7 +57,7 @@ func newCar(identifier string, startPos *api.Coordinate, color string, advancedD
 func (c *Car) updateCoordinator() {
 	// Create and send a CarInfo request
 	c.mu.Lock()
-	resp, err := c.Client.SendCarInfo(context.Background(), c.Car)
+	resp, err := c.Client.SendCarInfo(context.Background(), c.CarInfo)
 	if err != nil {
 		fmt.Println("Error sending car info:", err)
 		return
@@ -76,7 +76,7 @@ func (c *Car) discoverPeers() {
 			address := fmt.Sprintf("localhost:%d", port)
 
 			// Skip own port
-			if address == c.Car.Identifier {
+			if address == c.CarInfo.Identifier {
 				continue
 			}
 
@@ -161,7 +161,7 @@ func Run() {
 		fmt.Println("Failed to create car client")
 		return
 	}
-	fmt.Printf("Starting car: %+v\n", car.Car)
+	fmt.Printf("Starting car: %+v\n", car.CarInfo)
 
 	// Start the car client gRPC server
 	go car.startCarClientServer(fmt.Sprintf(":%d", *port))
