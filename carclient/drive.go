@@ -106,8 +106,8 @@ func (c *Car) oppositeDirection() int {
 	}
 }
 
-func (c *Car) manhattanDistance(p1, p2 *api.Coordinate) int {
-	return int(math.Abs(float64(p1.X-p2.X)) + math.Abs(float64(p1.Y-p2.Y)))
+func (c *Car) manhattanDistance(p1, p2 *api.Coordinate) float64 {
+	return math.Abs(float64(p1.X-p2.X)) + math.Abs(float64(p1.Y-p2.Y))
 }
 
 func (c *Car) calculateCost(pos *api.Coordinate) float64 {
@@ -115,12 +115,13 @@ func (c *Car) calculateCost(pos *api.Coordinate) float64 {
 	defer c.peerMutex.Unlock()
 
 	cost := 0.0
+	sum_dist := 0.0
+
 	for _, peer := range c.peers {
 		distance := c.manhattanDistance(pos, peer.Position)
-		if distance != 0 {
-			cost += 1 / float64(distance)
-		}
+		sum_dist += distance
 	}
+	cost = 1 / sum_dist
 	return cost
 }
 
@@ -143,12 +144,12 @@ func (c *Car) advancedDrive() {
 		}
 
 		cost := c.calculateCost(pos)
+		fmt.Println(cost)
 		if cost < minCost {
 			minCost = cost
 			bestPosition = pos
 		}
 	}
-
 	// Update the car's position
 	if bestPosition != nil {
 		c.mu.Lock()
