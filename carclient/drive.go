@@ -115,13 +115,13 @@ func (c *Car) calculateCost(pos *api.Coordinate) float64 {
 	defer c.peerMutex.Unlock()
 
 	cost := 0.0
-	sum_dist := 0.0
+	//sum_dist := 0.0
 
 	for _, peer := range c.peers {
 		distance := c.manhattanDistance(pos, peer.Position)
-		sum_dist += distance
+		cost += 1 / distance
 	}
-	cost = 1 / sum_dist
+	// cost = 1 / sum_dist
 	return cost
 }
 
