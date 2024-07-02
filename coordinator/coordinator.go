@@ -6,12 +6,17 @@ import (
 	"context"
 	"math"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"log"
 
 	"gioui.org/app"
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 	"google.golang.org/grpc"
 )
 
@@ -176,6 +181,40 @@ func updateGridDataRoute(route *api.Route, color string) {
 	}
 }
 
+func playCarSounds(filePath string) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Failed to open file: %v", err)
+		return // Exit the function and allow the application to continue running.
+	}
+	defer f.Close()
+
+	// Decode the MP3 file.
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		log.Printf("Failed to decode MP3 file: %v", err)
+		return // Exit the function on decoding errors.
+	}
+	defer streamer.Close()
+
+	err = speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	if err != nil {
+		log.Printf("Failed to initialize speaker: %v", err)
+		return // Exit the function if the speaker cannot be initialized.
+	}
+
+	done := make(chan bool)
+	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+		done <- true
+	})))
+
+	<-done
+
+	if err := streamer.Seek(0); err != nil {
+		log.Printf("Failed to seek to beginning of the stream: %v", err)
+	}
+}
+
 func Run() {
 
 	go startServer()
@@ -185,6 +224,9 @@ func Run() {
 	window := new(app.Window)
 
 	go display(window)
+
+	audioFilePath := filepath.Join(".", "carSound.mp3")
+	go playCarSounds(audioFilePath)
 
 	go waitForUpdates(window)
 
