@@ -8,6 +8,7 @@ import (
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 )
@@ -21,7 +22,8 @@ func display(window *app.Window) error {
 
 	var ops op.Ops
 
-	// Event loop
+	lightBlack := color.NRGBA{R: 50, G: 50, B: 50, A: 255}
+
 	for {
 		e := window.Event()
 		switch e := e.(type) {
@@ -29,6 +31,11 @@ func display(window *app.Window) error {
 			return e.Err
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
+
+			// Set the entire background to light grey
+			paint.ColorOp{Color: lightBlack}.Add(gtx.Ops)
+			paint.PaintOp{}.Add(gtx.Ops)
+
 			drawGrid(gtx, theme)
 			e.Frame(gtx.Ops)
 		}
